@@ -9,20 +9,40 @@ A tiny macOS menu bar stoplight that shows what Claude Code is doing at a glance
 | 🟡 Yellow | Running — tools / thinking |
 | 🟢 Green | Awaiting your next task (done) |
 
-The icon is a Claude-style radial "spark" that tints to the state color. To use
-your own mark instead, drop a silhouette PNG at `~/.claude/status-light/icon.png`
-— the app recolors its opaque pixels to the state color automatically.
+## Where it shows up
 
-Click the light for a dropdown listing every active session. **Click a session
-to jump straight to its terminal** — handy when you have several Claude Code
-instances open at once:
+Three surfaces, each toggleable in **Settings** (open it from any menu):
+
+- **Menu bar icon** (default on) — the light in the top-right status bar.
+- **Floating desktop window** — a small always-on-top panel that mirrors the
+  status and lists sessions. Lock it to any screen corner, or unlock it to drag
+  it anywhere (its position is remembered).
+- **Dock icon** — the app icon itself tints to the current state.
+
+Enabling the dock icon switches the app to a regular (dock-present) app;
+otherwise it runs as a menu-bar/desktop agent with no dock presence.
+
+## The icon
+
+By default it's a Claude-style radial "spark" that tints to the state color.
+Drop an image at `~/.claude/status-light/icon.png` (for example the Claude
+mascot) to use it instead — the app draws the full-color artwork and adds a
+small stoplight status dot in the corner, so the mark stays recognizable while
+still showing state.
+
+## Jumping to a session's terminal
+
+Click the menu-bar light (or a row in the floating window) to list every active
+session, and **click one to jump straight to its terminal** — handy with several
+Claude Code instances open at once:
 
 - **iTerm2** and **Terminal.app** — focused by their exact tab (matched by tty).
 - **Ghostty** and everything else — brought to the front (these terminals don't
   expose per-tab tty to AppleScript, so tab-level targeting isn't possible).
 
 When multiple sessions are active, the single light shows the most urgent state:
-red (blocked on you) ▸ green (done, wants a task) ▸ yellow (busy).
+red (blocked on you) ▸ green (done, wants a task) ▸ yellow (busy). That last
+ranking is a setting you can flip.
 
 ## How it works
 
