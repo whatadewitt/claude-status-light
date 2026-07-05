@@ -1,0 +1,4 @@
+.build/
+.swiftpm/
+*.bak.*
+.DS_Store
