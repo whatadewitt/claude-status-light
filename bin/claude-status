@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# claude-status — read/write the Claude Code status-light state.
+#
+# Usage:
+#   claude-status set <state> [message]   Write a new state
+#   claude-status get                     Print the current state JSON
+#   claude-status hook <state>            Meant to be called from a Claude Code
+#                                         hook; drains stdin and writes <state>,
+#                                         using the hook payload for a message.
+#
+# Valid states: idle | working | attention | error
+#
+# State is written to $CLAUDE_STATUS_FILE if set, else
+# ~/.claude/status-light/state.json — the same path the menu-bar app watches.
+
+set -euo pipefail
+
+STATE_FILE="${CLAUDE_STATUS_FILE:-${HOME}/.claude/status-light/state.json}"
+STATE_DIR="$(dirname "${STATE_FILE}")"
+
+# Escape a string for safe embedding in JSON (backslash, quote, control chars).
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+  s="${s//$'\t'/ }"
+  printf '%s' "$s"
+}
+
+write_state() {
+  local state="$1"
+  local message="${2:-}"
+  mkdir -p "${STATE_DIR}"
+  local iso ts
+  iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  ts="$(date +%s)"
+  local tmp
+  tmp="$(mktemp "${STATE_DIR}/.state.XXXXXX")"
+  printf '{"state":"%s","message":"%s","updated":"%s","ts":%s}\n' \
+    "$(json_escape "$state")" \
+    "$(json_escape "$message")" \
+    "$iso" \
+    "$ts" > "$tmp"
+  # Atomic replace so the app never reads a half-written file.
+  mv -f "$tmp" "$STATE_FILE"
+}
+
+cmd="${1:-get}"
+
+case "$cmd" in
+  set)
+    write_state "${2:-idle}" "${3:-}"
+    ;;
+  get)
+    cat "$STATE_FILE" 2>/dev/null || printf '{"state":"unknown"}\n'
+    ;;
+  hook)
+    # Claude Code pipes a JSON event on stdin. We don't need to parse it for the
+    # simple 3-state model, but draining stdin avoids broken-pipe noise. If jq is
+    # present we pull a friendly tool name for the menu detail line.
+    payload="$(cat 2>/dev/null || true)"
+    state="${2:-idle}"
+    message=""
+    if command -v jq >/dev/null 2>&1 && [ -n "$payload" ]; then
+      message="$(printf '%s' "$payload" | jq -r '.tool_name // .message // ""' 2>/dev/null || true)"
+    fi
+    write_state "$state" "$message"
+    ;;
+  *)
+    echo "usage: claude-status {set <state> [msg] | get | hook <state>}" >&2
+    exit 2
+    ;;
+esac
