@@ -1,15 +1,21 @@
 # Claude Status Light
 
-A tiny macOS menu bar light that shows what Claude Code is doing at a glance.
+A tiny macOS menu bar stoplight that shows what Claude Code is doing at a glance.
 
 | Light | Meaning |
 |-------|---------|
-| 🟢 Green | Idle — done, ready for you |
-| 🔵 Blue | Working — running tools / thinking |
-| 🟡 Yellow | Needs your attention — permission prompt or notification |
-| ⚪️ Gray | No active session |
+| ⚪️ Off | Not running — no active session |
+| 🔴 Red | Waiting for your input — permission prompt / notification |
+| 🟡 Yellow | Running — tools / thinking |
+| 🟢 Green | Awaiting your next task (done) |
 
-Click the light for a dropdown showing every active session's state.
+Click the light for a dropdown listing every active session. **Click a session
+to jump straight to its terminal window** — handy when you have several Claude
+Code instances open at once. Terminal.app and iTerm2 are focused by their exact
+tab (matched by tty); other terminals are brought to the front best-effort.
+
+When multiple sessions are active, the single light shows the most urgent state:
+red (blocked on you) ▸ green (done, wants a task) ▸ yellow (busy).
 
 ## How it works
 
@@ -21,18 +27,18 @@ Claude Code  ──(hooks)──▶  status-hook.sh  ──▶  ~/.claude/status
 ```
 
 Claude Code fires [hooks](https://code.claude.com/docs) on lifecycle events. Each
-event runs `status-hook.sh`, which records that session's current state in a small
-JSON file. The menu bar app watches that folder and shows the highest-priority
-state across all sessions (attention ▸ working ▸ idle), so multiple concurrent
-sessions aggregate correctly.
+event runs `status-hook.sh`, which records that session's current state — plus the
+terminal it's running in (`$TERM_PROGRAM` and tty) so the app can focus it — in a
+small JSON file. The menu bar app watches that folder and shows the highest-priority
+state across all sessions, so multiple concurrent sessions aggregate correctly.
 
-| Hook event | State |
-|------------|-------|
-| `SessionStart` | idle |
-| `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | working |
-| `Notification` | attention |
-| `Stop` | idle |
-| `SessionEnd` | (session removed) |
+| Hook event | State | Light |
+|------------|-------|-------|
+| `SessionStart` | idle | 🟢 awaiting next task |
+| `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | working | 🟡 running |
+| `Notification` | attention | 🔴 waiting for input |
+| `Stop` | idle | 🟢 awaiting next task |
+| `SessionEnd` | — | (session removed) |
 
 ## Install
 

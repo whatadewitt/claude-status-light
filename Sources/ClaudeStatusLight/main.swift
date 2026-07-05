@@ -3,39 +3,50 @@ import Foundation
 
 // MARK: - State model
 
-/// The four light states, in ascending display priority.
-/// When multiple Claude Code sessions are active, the highest-priority
-/// state wins (attention beats working beats idle).
+/// Stoplight states, in ascending display priority.
+/// When multiple Claude Code sessions are active, the highest-priority state
+/// wins the single menu-bar light (waiting-for-input beats awaiting-next-task
+/// beats running — the click-through menu shows each session individually).
 enum LightState: String {
-    case off        // no active session
-    case idle       // ready / done, waiting for you
-    case working    // running tools / thinking
-    case attention  // needs you: permission prompt or notification
+    case off        // not running — no active session
+    case working    // running — tools / thinking
+    case idle       // awaiting your next task (done)
+    case attention  // waiting for your input — permission prompt / notification
 
     var color: NSColor {
         switch self {
         case .off:       return NSColor.systemGray
+        case .working:   return NSColor.systemYellow
         case .idle:      return NSColor.systemGreen
-        case .working:   return NSColor.systemBlue
-        case .attention: return NSColor.systemYellow
+        case .attention: return NSColor.systemRed
         }
     }
 
     var label: String {
         switch self {
-        case .off:       return "No active session"
-        case .idle:      return "Idle — ready for you"
-        case .working:   return "Working…"
-        case .attention: return "Needs your attention"
+        case .off:       return "Not running"
+        case .working:   return "Running…"
+        case .idle:      return "Awaiting next task"
+        case .attention: return "Waiting for input"
+        }
+    }
+
+    var dot: String {
+        switch self {
+        case .off:       return "⚪️"
+        case .working:   return "🟡"
+        case .idle:      return "🟢"
+        case .attention: return "🔴"
         }
     }
 
     /// Higher wins when aggregating across sessions.
+    /// Red (blocked on you) ▸ green (done, wants a task) ▸ yellow (busy) ▸ off.
     var priority: Int {
         switch self {
         case .off:       return 0
-        case .idle:      return 1
-        case .working:   return 2
+        case .working:   return 1
+        case .idle:      return 2
         case .attention: return 3
         }
     }
@@ -45,13 +56,21 @@ enum LightState: String {
 struct SessionState {
     let sessionID: String
     let state: LightState
+    let cwd: String
+    let termProgram: String
+    let tty: String
     let updatedAt: Date
+
+    /// Human label for the menu — the project folder name.
+    var project: String {
+        let name = (cwd as NSString).lastPathComponent
+        return name.isEmpty ? "session" : name
+    }
 }
 
 // MARK: - State store
 
-/// Reads the per-session state files that the hook script writes and
-/// aggregates them into a single light state.
+/// Reads the per-session state files the hook writes and aggregates them.
 final class StateStore {
     static let sessionsDir: URL = {
         let base = FileManager.default.homeDirectoryForCurrentUser
@@ -60,8 +79,8 @@ final class StateStore {
         return base
     }()
 
-    /// Sessions untouched for longer than this are considered dead and ignored
-    /// (covers the case where Claude Code exits without firing SessionEnd).
+    /// Sessions untouched for longer than this are treated as dead and ignored
+    /// (covers Claude Code exiting without firing SessionEnd).
     private let staleAfter: TimeInterval = 12 * 60 * 60
 
     func activeSessions() -> [SessionState] {
@@ -89,11 +108,17 @@ final class StateStore {
             } else {
                 updatedAt = now
             }
-
             if now.timeIntervalSince(updatedAt) > staleAfter { continue }
 
             let id = (obj["session_id"] as? String) ?? url.deletingPathExtension().lastPathComponent
-            result.append(SessionState(sessionID: id, state: state, updatedAt: updatedAt))
+            result.append(SessionState(
+                sessionID: id,
+                state: state,
+                cwd: (obj["cwd"] as? String) ?? "",
+                termProgram: (obj["term_program"] as? String) ?? "unknown",
+                tty: (obj["tty"] as? String) ?? "",
+                updatedAt: updatedAt
+            ))
         }
         return result.sorted { $0.updatedAt > $1.updatedAt }
     }
@@ -114,6 +139,95 @@ final class StateStore {
     }
 }
 
+// MARK: - Terminal focusing
+
+/// Brings the terminal window/tab that hosts a given session to the front.
+enum TerminalFocuser {
+    static func focus(_ s: SessionState) {
+        // With a known tty we can target the exact tab; otherwise just raise the app.
+        if !s.tty.isEmpty, let script = script(for: s.termProgram, tty: s.tty) {
+            runAppleScript(script)
+        } else {
+            activateApp(for: s.termProgram)
+        }
+    }
+
+    private static func script(for termProgram: String, tty: String) -> String? {
+        let tty = tty.replacingOccurrences(of: "\"", with: "")
+        switch termProgram {
+        case "Apple_Terminal":
+            return """
+            tell application "Terminal"
+                activate
+                repeat with w in windows
+                    repeat with t in tabs of w
+                        try
+                            if (tty of t) is "\(tty)" then
+                                set selected of t to true
+                                set frontmost of w to true
+                                return
+                            end if
+                        end try
+                    end repeat
+                end repeat
+            end tell
+            """
+        case "iTerm.app":
+            return """
+            tell application "iTerm"
+                activate
+                repeat with w in windows
+                    repeat with t in tabs of w
+                        repeat with s in sessions of t
+                            try
+                                if (tty of s) is "\(tty)" then
+                                    select w
+                                    select t
+                                    select s
+                                    return
+                                end if
+                            end try
+                        end repeat
+                    end repeat
+                end repeat
+            end tell
+            """
+        default:
+            return nil
+        }
+    }
+
+    /// Best-effort fallback for terminals we can't target by tty.
+    private static func activateApp(for termProgram: String) {
+        let appName: String?
+        switch termProgram {
+        case "Apple_Terminal": appName = "Terminal"
+        case "iTerm.app":      appName = "iTerm"
+        case "vscode":         appName = "Visual Studio Code"
+        case "WezTerm":        appName = "WezTerm"
+        case "Hyper":          appName = "Hyper"
+        case "Tabby":          appName = "Tabby"
+        case "ghostty":        appName = "Ghostty"
+        default:               appName = nil
+        }
+        guard let appName else { return }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        proc.arguments = ["-a", appName]
+        try? proc.run()
+    }
+
+    private static func runAppleScript(_ script: String) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            proc.arguments = ["-e", script]
+            try? proc.run()
+            proc.waitUntilExit()
+        }
+    }
+}
+
 // MARK: - App
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -121,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = StateStore()
     private var timer: Timer?
     private var dirSource: DispatchSourceFileSystemObject?
+    private var menuSessions: [SessionState] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Menu-bar-only agent: no dock icon, no app-switcher entry.
@@ -163,6 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func buildMenu(state: LightState, sessions: [SessionState]) -> NSMenu {
+        menuSessions = sessions
         let menu = NSMenu()
 
         let header = NSMenuItem(title: "Claude Code — \(state.label)", action: nil, keyEquivalent: "")
@@ -171,14 +287,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !sessions.isEmpty {
             menu.addItem(.separator())
-            for s in sessions {
-                let shortID = String(s.sessionID.prefix(8))
+            let hint = NSMenuItem(title: "Click a session to open its terminal", action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            menu.addItem(hint)
+
+            for (index, s) in sessions.enumerated() {
                 let item = NSMenuItem(
-                    title: "  \(dot(for: s.state)) \(shortID) — \(s.state.label)",
-                    action: nil,
+                    title: "\(s.state.dot) \(s.project) — \(s.state.label)",
+                    action: #selector(focusSession(_:)),
                     keyEquivalent: ""
                 )
-                item.isEnabled = false
+                item.tag = index
+                item.toolTip = "\(s.cwd)\n\(s.termProgram) · \(s.tty.isEmpty ? "tty unknown" : s.tty)"
                 menu.addItem(item)
             }
         }
@@ -191,13 +311,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
-    private func dot(for state: LightState) -> String {
-        switch state {
-        case .off:       return "⚪️"
-        case .idle:      return "🟢"
-        case .working:   return "🔵"
-        case .attention: return "🟡"
-        }
+    @objc private func focusSession(_ sender: NSMenuItem) {
+        guard menuSessions.indices.contains(sender.tag) else { return }
+        TerminalFocuser.focus(menuSessions[sender.tag])
     }
 
     @objc private func reset() {
@@ -217,7 +333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         color.setFill()
         NSBezierPath(ovalIn: rect).fill()
         image.unlockFocus()
-        image.isTemplate = false // keep our colors; do not tint to menu-bar template
+        image.isTemplate = false // keep our colors; do not tint as a template
         return image
     }
 }
