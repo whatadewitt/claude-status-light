@@ -5,6 +5,10 @@ final class SettingsWindowController: NSObject {
     private var window: NSWindow?
     private var toggles: [Toggle] = []
     private var pickers: [Picker] = []
+    private var invokers: [ClosureInvoker] = []
+
+    /// Invoked when the "Reveal icon folder…" button is pressed.
+    var onRevealIcon: (() -> Void)?
 
     func show() {
         if window == nil { build() }
@@ -56,13 +60,23 @@ final class SettingsWindowController: NSObject {
             Settings.shared.greenBeatsYellow = $0
         })
 
+        stack.addArrangedSubview(separator())
+        stack.addArrangedSubview(sectionLabel("Icon"))
         let hint = NSTextField(wrappingLabelWithString:
-            "Tip: drop an image at ~/.claude/status-light/icon.png (e.g. the Claude mascot) "
+            "Drop an image at ~/.claude/status-light/icon.png (e.g. the Claude mascot) "
             + "to use it as the icon — a colored status dot is added automatically.")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .secondaryLabelColor
         hint.preferredMaxLayoutWidth = 340
         stack.addArrangedSubview(hint)
+
+        let reveal = NSButton(title: "Reveal icon folder…", target: nil, action: nil)
+        reveal.bezelStyle = .rounded
+        let invoker = ClosureInvoker { [weak self] in self?.onRevealIcon?() }
+        reveal.target = invoker
+        reveal.action = #selector(ClosureInvoker.fire)
+        invokers.append(invoker)
+        stack.addArrangedSubview(reveal)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 320),

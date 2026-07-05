@@ -3,20 +3,35 @@
 #
 #   ./scripts/uninstall.sh
 #
-# Stops and unregisters the LaunchAgent, removes the status-light hooks from
-# ~/.claude/settings.json, and deletes the installed files.
+# Quits the app, removes the login item, strips the hooks from
+# ~/.claude/settings.json, and deletes the app bundle and installed files.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_NAME="Claude Status Light"
+APP_DIR="$HOME/Applications/$APP_NAME.app"
 INSTALL_DIR="$HOME/.claude/status-light"
 HOOK_DEST="$INSTALL_DIR/status-hook.sh"
-PLIST_LABEL="com.claude.statuslight"
-PLIST_DEST="$HOME/Library/LaunchAgents/$PLIST_LABEL.plist"
+OLD_PLIST="$HOME/Library/LaunchAgents/com.claude.statuslight.plist"
 
-echo "==> Stopping LaunchAgent"
-launchctl unload "$PLIST_DEST" 2>/dev/null || true
-rm -f "$PLIST_DEST"
+echo "==> Quitting the app"
+pkill -f "$APP_DIR/Contents/MacOS/ClaudeStatusLight" 2>/dev/null || true
+
+echo "==> Removing login item"
+osascript >/dev/null 2>&1 <<OSA || true
+tell application "System Events"
+    try
+        delete (every login item whose name is "$APP_NAME")
+    end try
+end tell
+OSA
+
+echo "==> Removing any old LaunchAgent"
+if [[ -f "$OLD_PLIST" ]]; then
+    launchctl unload "$OLD_PLIST" 2>/dev/null || true
+    rm -f "$OLD_PLIST"
+fi
 
 echo "==> Removing hooks from ~/.claude/settings.json"
 if command -v python3 >/dev/null; then
@@ -26,6 +41,6 @@ else
 fi
 
 echo "==> Removing installed files"
-rm -rf "$INSTALL_DIR"
+rm -rf "$APP_DIR" "$INSTALL_DIR"
 
-echo "Done. The menu bar light has been removed."
+echo "Done. Claude Status Light has been removed."

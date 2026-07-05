@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         floating.onFocus = { TerminalFocuser.focus($0) }
         floating.onRequestMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
+        settingsWindow.onRevealIcon = { [weak self] in self?.revealIconFolder() }
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(applySettings),
@@ -117,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(.separator())
+        addItem(to: menu, title: "Set custom icon…", key: "") { [weak self] in self?.revealIconFolder() }
         addItem(to: menu, title: "Settings…", key: ",") { [weak self] in self?.settingsWindow.show() }
         addItem(to: menu, title: "Clear all sessions", key: "") { [weak self] in
             self?.store.reset()
@@ -124,6 +126,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         addItem(to: menu, title: "Quit", key: "q") { NSApp.terminate(nil) }
         return menu
+    }
+
+    /// Opens ~/.claude/status-light in Finder so a custom icon.png can be dropped
+    /// in, selecting the existing icon if there is one.
+    private func revealIconFolder() {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/status-light", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let icon = dir.appendingPathComponent("icon.png")
+        if FileManager.default.fileExists(atPath: icon.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([icon])
+        } else {
+            NSWorkspace.shared.open(dir)
+        }
     }
 
     private func addItem(to menu: NSMenu, title: String, key: String, _ block: @escaping () -> Void) {
