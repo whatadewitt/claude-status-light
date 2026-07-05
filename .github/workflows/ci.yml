@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    name: Build (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build (debug)
+        run: swift build
+
+      - name: Build (release)
+        run: swift build -c release
+
+      - name: Smoke-test icon generation
+        run: |
+          set -euo pipefail
+          BIN="$(swift build -c release --show-bin-path)/ClaudeStatusLight"
+          OUT="$(mktemp -d)/AppIcon.iconset"
+          "$BIN" --render-iconset "$OUT"
+          ls -la "$OUT"
+          test -f "$OUT/icon_512x512@2x.png"
+          # Confirm the .icns packs cleanly with the same tool the installer uses.
+          iconutil -c icns "$OUT" -o "$(mktemp -d)/AppIcon.icns"
+
+  scripts:
+    name: Lint scripts (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash -n hooks/status-hook.sh
+          bash -n scripts/install.sh
+          bash -n scripts/uninstall.sh
+
+      - name: Python compiles
+        run: python3 -m py_compile scripts/merge_settings.py
+
+      - name: merge_settings.py is idempotent and non-destructive
+        run: |
+          set -euo pipefail
+          export HOME="$(mktemp -d)"
+          mkdir -p "$HOME/.claude/status-light"
+          HOOK="$HOME/.claude/status-light/status-hook.sh"
+          cp hooks/status-hook.sh "$HOOK"
+          printf '{"model":"opus","hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo keep"}]}]}}' \
+            > "$HOME/.claude/settings.json"
+          python3 scripts/merge_settings.py add "$HOOK"
+          python3 scripts/merge_settings.py add "$HOOK"   # second time must not duplicate
+          python3 - "$HOOK" <<'PY'
+          import json, os, sys
+          hook = sys.argv[1]
+          s = json.load(open(os.path.expanduser("~/.claude/settings.json")))
+          hooks = s["hooks"]
+          # pre-existing hook survived
+          assert any(h["command"] == "echo keep"
+                     for g in hooks["Stop"] for h in g["hooks"]), "existing hook lost"
+          # our command present exactly once per event we manage
+          for event in ("SessionStart", "UserPromptSubmit", "Notification", "SessionEnd"):
+              cmds = [h["command"] for g in hooks[event] for h in g["hooks"] if hook in h["command"]]
+              assert len(cmds) == 1, f"{event}: expected 1 status-light hook, got {len(cmds)}"
+          print("merge_settings.py checks passed")
+          PY
+          python3 scripts/merge_settings.py remove "$HOOK"
+          python3 - "$HOOK" <<'PY'
+          import json, os, sys
+          hook = sys.argv[1]
+          s = json.load(open(os.path.expanduser("~/.claude/settings.json")))
+          hooks = s.get("hooks", {})
+          assert any(h["command"] == "echo keep"
+                     for g in hooks.get("Stop", []) for h in g["hooks"]), "existing hook lost on remove"
+          leftover = [h["command"] for groups in hooks.values() for grp in groups
+                      for h in grp["hooks"] if hook in h["command"]]
+          assert not leftover, f"status-light hooks not fully removed: {leftover}"
+          print("remove checks passed")
+          PY
