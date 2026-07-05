@@ -272,7 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sessions = store.activeSessions()
         let state = store.aggregate(sessions)
 
-        statusItem.button?.image = Self.circleImage(color: state.color)
+        statusItem.button?.image = Self.iconImage(color: state.color)
         statusItem.button?.toolTip = "Claude Code: \(state.label)"
         statusItem.menu = buildMenu(state: state, sessions: sessions)
     }
@@ -325,15 +325,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    private static func circleImage(color: NSColor) -> NSImage {
-        let size = NSSize(width: 16, height: 16)
+    private static let iconSide: CGFloat = 18
+
+    /// The menu-bar glyph, tinted to the current state color.
+    /// If the user drops a silhouette at ~/.claude/status-light/icon.png we tint
+    /// that (so the real Claude mark can be swapped in); otherwise we draw a
+    /// Claude-style radial "spark" burst.
+    private static func iconImage(color: NSColor) -> NSImage {
+        if let custom = customTemplate() {
+            return tinted(custom, color: color)
+        }
+        return burstImage(color: color)
+    }
+
+    private static func customTemplate() -> NSImage? {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/status-light/icon.png")
+        guard FileManager.default.fileExists(atPath: url.path),
+              let img = NSImage(contentsOf: url) else { return nil }
+        return img
+    }
+
+    /// Recolor every non-transparent pixel of `base` to `color`.
+    private static func tinted(_ base: NSImage, color: NSColor) -> NSImage {
+        let size = NSSize(width: iconSide, height: iconSide)
         let image = NSImage(size: size)
         image.lockFocus()
-        let rect = NSRect(x: 3, y: 3, width: 10, height: 10)
+        let rect = NSRect(origin: .zero, size: size)
+        base.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        NSGraphicsContext.current?.compositingOperation = .sourceAtop
         color.setFill()
-        NSBezierPath(ovalIn: rect).fill()
+        NSBezierPath(rect: rect).fill()
         image.unlockFocus()
-        image.isTemplate = false // keep our colors; do not tint as a template
+        image.isTemplate = false
+        return image
+    }
+
+    /// A radial burst of tapered spokes — evokes the Claude spark.
+    private static func burstImage(color: NSColor) -> NSImage {
+        let side = iconSide
+        let image = NSImage(size: NSSize(width: side, height: side))
+        image.lockFocus()
+        color.setFill()
+
+        let center = CGPoint(x: side / 2, y: side / 2)
+        let rays = 12
+        let outerR: CGFloat = 8
+        let innerR: CGFloat = 2.3
+        let baseHalf = (.pi / CGFloat(rays)) * 0.55
+
+        for i in 0..<rays {
+            let a = (CGFloat(i) / CGFloat(rays)) * 2 * .pi
+            let tip = CGPoint(x: center.x + outerR * cos(a),
+                              y: center.y + outerR * sin(a))
+            let b1 = CGPoint(x: center.x + innerR * cos(a - baseHalf),
+                             y: center.y + innerR * sin(a - baseHalf))
+            let b2 = CGPoint(x: center.x + innerR * cos(a + baseHalf),
+                             y: center.y + innerR * sin(a + baseHalf))
+            let spoke = NSBezierPath()
+            spoke.move(to: b1)
+            spoke.line(to: tip)
+            spoke.line(to: b2)
+            spoke.close()
+            spoke.fill()
+        }
+        // Solid hub connecting the spokes.
+        NSBezierPath(ovalIn: NSRect(x: center.x - innerR, y: center.y - innerR,
+                                    width: innerR * 2, height: innerR * 2)).fill()
+
+        image.unlockFocus()
+        image.isTemplate = false
         return image
     }
 }

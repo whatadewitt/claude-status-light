@@ -9,10 +9,17 @@ A tiny macOS menu bar stoplight that shows what Claude Code is doing at a glance
 | 🟡 Yellow | Running — tools / thinking |
 | 🟢 Green | Awaiting your next task (done) |
 
+The icon is a Claude-style radial "spark" that tints to the state color. To use
+your own mark instead, drop a silhouette PNG at `~/.claude/status-light/icon.png`
+— the app recolors its opaque pixels to the state color automatically.
+
 Click the light for a dropdown listing every active session. **Click a session
-to jump straight to its terminal window** — handy when you have several Claude
-Code instances open at once. Terminal.app and iTerm2 are focused by their exact
-tab (matched by tty); other terminals are brought to the front best-effort.
+to jump straight to its terminal** — handy when you have several Claude Code
+instances open at once:
+
+- **iTerm2** and **Terminal.app** — focused by their exact tab (matched by tty).
+- **Ghostty** and everything else — brought to the front (these terminals don't
+  expose per-tab tty to AppleScript, so tab-level targeting isn't possible).
 
 When multiple sessions are active, the single light shows the most urgent state:
 red (blocked on you) ▸ green (done, wants a task) ▸ yellow (busy).
