@@ -26,7 +26,30 @@ command -v python3 >/dev/null || { echo "python3 not found. Install the Xcode Co
 
 echo "==> Building (release)"
 cd "$REPO_ROOT"
-swift build -c release
+if ! swift build -c release; then
+    cat >&2 <<'EOF'
+
+──────────────────────────────────────────────────────────────────────
+Build failed.
+
+If the errors above mention "redefinition of module 'SwiftBridging'" or
+"this SDK is not supported by the compiler", your Swift compiler and SDK
+are mismatched. This is a macOS toolchain issue, not a problem with this
+project. Fix it, then re-run ./scripts/install.sh:
+
+  • If Xcode is installed, point the tools at it:
+      sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+      sudo xcodebuild -license accept
+
+  • If you only use the Command Line Tools, reinstall them:
+      sudo rm -rf /Library/Developer/CommandLineTools
+      sudo xcode-select --install
+
+Check what you're using with:   xcode-select -p && swift --version
+──────────────────────────────────────────────────────────────────────
+EOF
+    exit 1
+fi
 BUILT_BINARY="$(swift build -c release --show-bin-path)/ClaudeStatusLight"
 
 echo "==> Migrating any previous install"
