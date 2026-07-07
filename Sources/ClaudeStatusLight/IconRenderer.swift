@@ -63,9 +63,11 @@ enum IconRenderer {
     /// "arms" band, and four legs. `X` cells are filled with the state color;
     /// `.` cells (eyes, gaps) stay transparent.
     ///
-    /// Frame 0 is the rest pose (all static states). Frames 1 and 2 are the
-    /// working dance: the body sways right then left, and the trailing pair
-    /// of legs steps inward with each sway.
+    /// Frame 0 is the rest pose (all static states). The rest are dance
+    /// poses combined into moves by `danceMoves`:
+    /// 1 lean right (left legs step), 2 lean left (right legs step),
+    /// 3 hop (legs tucked, airborne), 4 crouch, 5 half-blink,
+    /// 6 kick right leg out, 7 kick left leg out.
     private static let mascotFrames: [[String]] = [
         [
             ".XXXXXXXXXXX.",
@@ -106,10 +108,85 @@ enum IconRenderer {
             "..X.X..X.X...",
             "..X.X..X.X...",
         ],
+        [
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XX.XXXXX.XX.",
+            ".XX.XXXXX.XX.",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            "..X.X...X.X..",
+            ".............",
+        ],
+        [
+            ".............",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XX.XXXXX.XX.",
+            ".XX.XXXXX.XX.",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            ".XXXXXXXXXXX.",
+            "..X.X...X.X..",
+            "..X.X...X.X..",
+        ],
+        [
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XX.XXXXX.XX.",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            "..X.X...X.X..",
+            "..X.X...X.X..",
+        ],
+        [
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XX.XXXXX.XX.",
+            ".XX.XXXXX.XX.",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            "..X.X...X...X",
+            "..X.X...X...X",
+        ],
+        [
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XX.XXXXX.XX.",
+            ".XX.XXXXX.XX.",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            "X...X...X.X..",
+            "X...X...X.X..",
+        ],
     ]
 
     /// Number of dance frames (frame 0 is the rest pose).
     static var mascotFrameCount: Int { mascotFrames.count }
+
+    /// Dance moves: sequences of frame indices played one tick at a time.
+    /// The animator plays a move through, then picks a different one.
+    static let danceMoves: [[Int]] = [
+        [0, 1, 0, 2, 0, 1, 0, 2],       // sway
+        [1, 2, 1, 2, 1, 2, 1, 2],       // fast shuffle
+        [0, 4, 0, 3, 0, 4, 0, 3],       // bounce: crouch, up, hang, land
+        [0, 6, 0, 7, 0, 6, 0, 7],       // side kicks
+        [0, 5, 0, 1, 5, 2, 0, 5],       // sleepy groove (blinks mid-sway)
+    ]
 
     private static func drawMascot(color: NSColor, in rect: NSRect, frame: Int = 0) {
         let mascotGrid = mascotFrames[frame % mascotFrames.count]

@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dirSource: DispatchSourceFileSystemObject?
     private var danceTimer: Timer?
     private var danceFrame = 0
+    private var danceMove: [Int] = []
+    private var danceStep = 0
 
     private var currentSessions: [SessionState] = []
     private var currentState: LightState = .off
@@ -86,9 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if anyWorking {
             guard danceTimer == nil else { return }
             let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-                guard let self else { return }
-                self.danceFrame = (self.danceFrame + 1) % IconRenderer.mascotFrameCount
-                self.applyIcons()
+                self?.danceTick()
             }
             timer.tolerance = 0.1
             danceTimer = timer
@@ -96,7 +96,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             danceTimer?.invalidate()
             danceTimer = nil
             danceFrame = 0
+            danceMove = []
+            danceStep = 0
         }
+    }
+
+    /// Advances the choreography: play the current move through, then switch
+    /// to a different randomly chosen one.
+    private func danceTick() {
+        if danceStep >= danceMove.count {
+            danceMove = IconRenderer.danceMoves.filter { $0 != danceMove }.randomElement() ?? danceMove
+            danceStep = 0
+        }
+        danceFrame = danceMove[danceStep]
+        danceStep += 1
+        applyIcons()
     }
 
     /// Renders the current state + dance frame onto every visible surface.
