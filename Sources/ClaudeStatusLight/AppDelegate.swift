@@ -73,15 +73,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Settings.shared.showFloatingWindow {
             floating.update(state: state, sessions: sessions)
         }
-        updateDance(for: state)
+        updateDance(anyWorking: sessions.contains { $0.state == .working })
         applyIcons()
     }
 
     // MARK: - Dance
 
-    /// The mascot scuttles while Claude is working; every other state is still.
-    private func updateDance(for state: LightState) {
-        if state == .working {
+    /// The mascot dances while any session is working — even if the aggregate
+    /// light shows another color (e.g. green because a different session is
+    /// ready, with "green beats yellow" on). Motion = something is running.
+    private func updateDance(anyWorking: Bool) {
+        if anyWorking {
             guard danceTimer == nil else { return }
             let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
                 guard let self else { return }
