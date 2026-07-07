@@ -5,9 +5,10 @@
 #   where <state> is one of: idle | working | attention | end
 #
 # Reads the Claude Code hook payload (JSON) on stdin, extracts the session_id
-# and cwd, captures the terminal (TERM_PROGRAM + tty) it is running in, and
-# writes a small per-session state file that the menu bar app reads. `end`
-# removes the session's file.
+# and cwd, captures the terminal (TERM_PROGRAM + tty) it is running in and the
+# PID of the Claude Code process, and writes a small per-session state file
+# that the menu bar app reads. `end` removes the session's file. The recorded
+# PID lets the app drop sessions whose process died without firing SessionEnd.
 #
 # Must always exit 0 and never block — it runs inline in Claude Code.
 
@@ -40,8 +41,27 @@ CWD="$(extract cwd)"
 
 TERM_PROG="${TERM_PROGRAM:-unknown}"
 
-# Controlling terminal of this session (inherited from Claude Code).
-TTY_DEV="$(ps -o tty= -p $$ 2>/dev/null | tr -d '[:space:]')"
+# Nearest non-shell ancestor: the Claude Code process that spawned this hook
+# (hooks may run through one or more intermediate shells). Prints nothing if
+# it can't be identified.
+find_claude_pid() {
+    local p=$$ comm base _
+    for _ in 1 2 3 4 5 6 7 8; do
+        p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d '[:space:]')"
+        case "$p" in ''|0|1) return ;; esac
+        comm="$(ps -o comm= -p "$p" 2>/dev/null | tr -d '[:space:]')"
+        base="${comm##*/}"
+        base="${base#-}"
+        case "$base" in
+            sh|bash|zsh|dash|ksh|fish) continue ;;
+            *) printf '%s' "$p"; return ;;
+        esac
+    done
+}
+CLAUDE_PID="$(find_claude_pid)"
+
+# Controlling terminal of the Claude process (the hook itself often has none).
+TTY_DEV="$(ps -o tty= -p "${CLAUDE_PID:-$$}" 2>/dev/null | tr -d '[:space:]')"
 case "$TTY_DEV" in
     ""|"?"|"??") TTY_PATH="" ;;
     /dev/*)      TTY_PATH="$TTY_DEV" ;;
@@ -55,12 +75,13 @@ if [ "$STATE" = "end" ]; then
 else
     # Minimal JSON string escaping (backslash then quote).
     esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-    printf '{"state":"%s","session_id":"%s","cwd":"%s","term_program":"%s","tty":"%s","updated_at":%s}\n' \
+    printf '{"state":"%s","session_id":"%s","cwd":"%s","term_program":"%s","tty":"%s","pid":%d,"updated_at":%s}\n' \
         "$STATE" \
         "$(esc "$SESSION_ID")" \
         "$(esc "$CWD")" \
         "$(esc "$TERM_PROG")" \
         "$(esc "$TTY_PATH")" \
+        "${CLAUDE_PID:-0}" \
         "$(date +%s)" \
         > "$FILE" 2>/dev/null
 fi

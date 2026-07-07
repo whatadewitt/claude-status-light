@@ -56,9 +56,15 @@ Claude Code  ──(hooks)──▶  status-hook.sh  ──▶  ~/.claude/status
 
 Claude Code fires [hooks](https://code.claude.com/docs) on lifecycle events. Each
 event runs `status-hook.sh`, which records that session's current state — plus the
-terminal it's running in (`$TERM_PROGRAM` and tty) so the app can focus it — in a
-small JSON file. The menu bar app watches that folder and shows the highest-priority
-state across all sessions, so multiple concurrent sessions aggregate correctly.
+terminal it's running in (`$TERM_PROGRAM` and tty) so the app can focus it, and the
+Claude Code process's PID — in a small JSON file. The menu bar app watches that
+folder and shows the highest-priority state across all sessions, so multiple
+concurrent sessions aggregate correctly.
+
+The recorded PID keeps the list honest: if a session's process is gone (terminal
+closed, crash — anything that skips `SessionEnd`), the app drops it immediately and
+deletes its file. Headless sessions with no terminal (e.g. daemon-spawned background
+tasks) are real and still counted, but marked *background* in the session list.
 
 | Hook event | State | Light |
 |------------|-------|-------|

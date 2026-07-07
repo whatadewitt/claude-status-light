@@ -59,6 +59,9 @@ if [[ -f "$OLD_PLIST" ]]; then
     echo "    removed old LaunchAgent"
 fi
 
+echo "==> Stopping any running instance"
+pkill -x ClaudeStatusLight 2>/dev/null || true
+
 echo "==> Assembling $APP_DIR"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"

@@ -42,7 +42,13 @@ struct SessionState {
     let cwd: String
     let termProgram: String
     let tty: String
+    /// PID of the Claude Code process, when the hook could identify it.
+    let pid: Int?
     let updatedAt: Date
+
+    /// Headless sessions (daemon-spawned, background tasks): a known owning
+    /// process but no controlling terminal.
+    var isBackground: Bool { pid != nil && tty.isEmpty }
 
     /// Human label for the menu — the project folder name.
     var project: String {

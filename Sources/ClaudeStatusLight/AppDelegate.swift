@@ -105,8 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hint.isEnabled = false
             menu.addItem(hint)
             for session in currentSessions {
+                let badge = session.isBackground ? " · background" : ""
                 let item = NSMenuItem(
-                    title: "\(session.state.dot) \(session.project) — \(session.state.label)",
+                    title: "\(session.state.dot) \(session.project) — \(session.state.label)\(badge)",
                     action: #selector(ClosureInvoker.fire), keyEquivalent: ""
                 )
                 let invoker = ClosureInvoker { TerminalFocuser.focus(session) }

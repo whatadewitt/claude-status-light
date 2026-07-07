@@ -21,6 +21,9 @@ jobs:
       - name: Build (release)
         run: swift build -c release
 
+      - name: Test
+        run: bash scripts/test.sh
+
       - name: Smoke-test icon generation
         run: |
           set -euo pipefail
@@ -43,6 +46,11 @@ jobs:
           bash -n hooks/status-hook.sh
           bash -n scripts/install.sh
           bash -n scripts/uninstall.sh
+          bash -n scripts/test.sh
+          bash -n Tests/hook_test.sh
+
+      - name: Hook behavior
+        run: bash Tests/hook_test.sh
 
       - name: Python compiles
         run: python3 -m py_compile scripts/merge_settings.py

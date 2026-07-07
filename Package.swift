@@ -1,4 +1,4 @@
-// swift-tools-version:5.7
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
@@ -7,7 +7,14 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ClaudeStatusLight",
-            path: "Sources/ClaudeStatusLight"
+            path: "Sources/ClaudeStatusLight",
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "ClaudeStatusLightTests",
+            dependencies: ["ClaudeStatusLight"],
+            path: "Tests/ClaudeStatusLightTests",
+            swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]
 )
