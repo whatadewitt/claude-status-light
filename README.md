@@ -24,9 +24,9 @@ otherwise it runs as a menu-bar/desktop agent with no dock presence.
 
 ## The icon
 
-By default it's a Claude-style radial "spark" that tints to the state color.
-Drop an image at `~/.claude/status-light/icon.png` (for example the Claude
-mascot) to use it instead — the app draws the full-color artwork and adds a
+By default it's the Claude Code pixel mascot, tinted to the state color.
+Drop an image at `~/.claude/status-light/icon.png` to use custom artwork
+instead — the app draws the full-color artwork and adds a
 small stoplight status dot in the corner, so the mark stays recognizable while
 still showing state. Use **Set custom icon…** (in the menu) or **Reveal icon
 folder…** (in Settings) to open that folder in Finder.

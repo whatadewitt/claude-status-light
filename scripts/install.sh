@@ -114,7 +114,7 @@ echo "==> Launching"
 open "$APP_DIR"
 
 echo ""
-echo "Done. A colored spark should appear in your menu bar."
+echo "Done. A colored pixel mascot should appear in your menu bar."
 echo "  🟢 awaiting task   🟡 running   🔴 waiting for input   ⚪️ not running"
 echo ""
 echo "Open Settings from the menu to enable the floating window or dock icon."
