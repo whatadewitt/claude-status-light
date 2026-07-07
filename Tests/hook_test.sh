@@ -54,4 +54,17 @@ assert isinstance(data["updated_at"], int), data
 print("ok")
 PY
 
+echo "--- attention downgrades to idle for the 'waiting for your input' reminder"
+printf '{"session_id":"test-idle-note","message":"Claude is waiting for your input"}' | bash "$HOOK" attention
+printf '{"session_id":"test-perm-note","message":"Claude needs your permission to use Bash"}' | bash "$HOOK" attention
+python3 - <<'PY'
+import json, os
+base = os.path.expanduser("~/.claude/status-light/sessions/")
+idle = json.load(open(base + "test-idle-note.json"))
+perm = json.load(open(base + "test-perm-note.json"))
+assert idle["state"] == "idle", idle
+assert perm["state"] == "attention", perm
+print("ok")
+PY
+
 echo "All hook tests passed."

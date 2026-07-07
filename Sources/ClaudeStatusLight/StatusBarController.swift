@@ -19,8 +19,12 @@ final class StatusBarController {
 
     func update(state: LightState, menu: NSMenu) {
         guard let statusItem else { return }
-        statusItem.button?.image = IconRenderer.icon(for: state, side: 18)
         statusItem.button?.toolTip = "Claude Code: \(state.label)"
         statusItem.menu = menu
+    }
+
+    /// Swaps just the glyph — called on every state change and dance frame.
+    func setIcon(_ image: NSImage) {
+        statusItem?.button?.image = image
     }
 }

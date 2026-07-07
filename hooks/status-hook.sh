@@ -32,6 +32,16 @@ extract() {
 SESSION_ID="$(extract session_id)"
 [ -z "${SESSION_ID:-}" ] && SESSION_ID="default"
 
+# The Notification event fires both for permission prompts (truly blocked —
+# red) and for the ~60s idle reminder ("Claude is waiting for your input"),
+# which just means "ready for your next prompt" — keep that one green.
+if [ "$STATE" = "attention" ]; then
+    MESSAGE="$(extract message | tr '[:upper:]' '[:lower:]')"
+    case "$MESSAGE" in
+        *"waiting for your input"*) STATE="idle" ;;
+    esac
+fi
+
 # Sanitize for use as a filename (guard against path traversal).
 SAFE_ID="$(printf '%s' "$SESSION_ID" | tr -cd 'A-Za-z0-9._-')"
 [ -z "$SAFE_ID" ] && SAFE_ID="default"

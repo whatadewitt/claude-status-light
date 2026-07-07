@@ -8,6 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var timer: Timer?
     private var dirSource: DispatchSourceFileSystemObject?
+    private var danceTimer: Timer?
+    private var danceFrame = 0
 
     private var currentSessions: [SessionState] = []
     private var currentState: LightState = .off
@@ -71,8 +73,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Settings.shared.showFloatingWindow {
             floating.update(state: state, sessions: sessions)
         }
+        updateDance(for: state)
+        applyIcons()
+    }
+
+    // MARK: - Dance
+
+    /// The mascot scuttles while Claude is working; every other state is still.
+    private func updateDance(for state: LightState) {
+        if state == .working {
+            guard danceTimer == nil else { return }
+            let timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+                guard let self else { return }
+                self.danceFrame = (self.danceFrame + 1) % IconRenderer.mascotFrameCount
+                self.applyIcons()
+            }
+            timer.tolerance = 0.1
+            danceTimer = timer
+        } else {
+            danceTimer?.invalidate()
+            danceTimer = nil
+            danceFrame = 0
+        }
+    }
+
+    /// Renders the current state + dance frame onto every visible surface.
+    private func applyIcons() {
+        statusBar.setIcon(IconRenderer.icon(for: currentState, side: 18, frame: danceFrame))
+        if Settings.shared.showFloatingWindow {
+            floating.setIcon(IconRenderer.icon(for: currentState, side: 16, frame: danceFrame))
+        }
         if Settings.shared.showDockIcon {
-            NSApp.applicationIconImage = IconRenderer.icon(for: state, side: 128, background: dockBackground)
+            NSApp.applicationIconImage = IconRenderer.icon(
+                for: currentState, side: 128, background: dockBackground, frame: danceFrame)
         }
     }
 

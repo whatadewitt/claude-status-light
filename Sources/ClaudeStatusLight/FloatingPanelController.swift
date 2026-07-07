@@ -5,6 +5,7 @@ import AppKit
 final class FloatingPanelController: NSObject {
     private var panel: NSPanel?
     private let container = NSStackView()
+    private let iconView = NSImageView()
     private var invokers: [ClosureInvoker] = []
 
     /// Called when a listed session is clicked.
@@ -77,7 +78,6 @@ final class FloatingPanelController: NSObject {
         let header = NSStackView()
         header.orientation = .horizontal
         header.spacing = 6
-        let iconView = NSImageView()
         iconView.image = IconRenderer.icon(for: state, side: 16)
         iconView.setContentHuggingPriority(.required, for: .horizontal)
         header.addArrangedSubview(iconView)
@@ -97,6 +97,11 @@ final class FloatingPanelController: NSObject {
         panel.setContentSize(NSSize(width: stableWidth(), height: container.fittingSize.height))
         panel.isMovableByWindowBackground = !Settings.shared.lockToCorner
         reposition()
+    }
+
+    /// Swaps just the header glyph — called on every dance frame.
+    func setIcon(_ image: NSImage) {
+        iconView.image = image
     }
 
     /// Panel width sized for the worst-case title so state flips never change

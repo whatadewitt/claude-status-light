@@ -8,18 +8,18 @@ import AppKit
 /// - Otherwise the Claude Code pixel mascot is drawn, tinted to the state
 ///   color.
 enum IconRenderer {
-    static func icon(for state: LightState, side: CGFloat, background: NSColor? = nil) -> NSImage {
+    static func icon(for state: LightState, side: CGFloat, background: NSColor? = nil, frame: Int = 0) -> NSImage {
         let size = NSSize(width: side, height: side)
         let image = NSImage(size: size)
         image.lockFocus()
-        drawStatus(state: state, in: NSRect(origin: .zero, size: size), background: background)
+        drawStatus(state: state, in: NSRect(origin: .zero, size: size), background: background, frame: frame)
         image.unlockFocus()
         image.isTemplate = false
         return image
     }
 
     /// Draws the status glyph into the current graphics context.
-    private static func drawStatus(state: LightState, in rect: NSRect, background: NSColor?) {
+    private static func drawStatus(state: LightState, in rect: NSRect, background: NSColor?, frame: Int = 0) {
         if let bg = background {
             let inset = rect.width * 0.08
             let bgRect = rect.insetBy(dx: inset, dy: inset)
@@ -34,7 +34,7 @@ enum IconRenderer {
             custom.draw(in: contentRect, from: .zero, operation: .sourceOver, fraction: 1)
             drawBadge(state.color, in: contentRect)
         } else {
-            drawMascot(color: state.color, in: contentRect)
+            drawMascot(color: state.color, in: contentRect, frame: frame)
         }
     }
 
@@ -62,21 +62,56 @@ enum IconRenderer {
     /// The Claude Code pixel mascot: flat-top body, two slit eyes, a wider
     /// "arms" band, and four legs. `X` cells are filled with the state color;
     /// `.` cells (eyes, gaps) stay transparent.
-    private static let mascotGrid: [String] = [
-        ".XXXXXXXXXXX.",
-        ".XXXXXXXXXXX.",
-        ".XX.XXXXX.XX.",
-        ".XX.XXXXX.XX.",
-        "XXXXXXXXXXXXX",
-        "XXXXXXXXXXXXX",
-        "XXXXXXXXXXXXX",
-        ".XXXXXXXXXXX.",
-        ".XXXXXXXXXXX.",
-        "..X.X...X.X..",
-        "..X.X...X.X..",
+    ///
+    /// Frame 0 is the rest pose (all static states). Frames 1 and 2 are the
+    /// working dance: the body sways right then left over planted feet.
+    private static let mascotFrames: [[String]] = [
+        [
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            ".XX.XXXXX.XX.",
+            ".XX.XXXXX.XX.",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            "XXXXXXXXXXXXX",
+            ".XXXXXXXXXXX.",
+            ".XXXXXXXXXXX.",
+            "..X.X...X.X..",
+            "..X.X...X.X..",
+        ],
+        [
+            "..XXXXXXXXXXX",
+            "..XXXXXXXXXXX",
+            "..XX.XXXXX.XX",
+            "..XX.XXXXX.XX",
+            ".XXXXXXXXXXXX",
+            ".XXXXXXXXXXXX",
+            ".XXXXXXXXXXXX",
+            "..XXXXXXXXXXX",
+            "..XXXXXXXXXXX",
+            "..X.X...X.X..",
+            "..X.X...X.X..",
+        ],
+        [
+            "XXXXXXXXXXX..",
+            "XXXXXXXXXXX..",
+            "XX.XXXXX.XX..",
+            "XX.XXXXX.XX..",
+            "XXXXXXXXXXXX.",
+            "XXXXXXXXXXXX.",
+            "XXXXXXXXXXXX.",
+            "XXXXXXXXXXX..",
+            "XXXXXXXXXXX..",
+            "..X.X...X.X..",
+            "..X.X...X.X..",
+        ],
     ]
 
-    private static func drawMascot(color: NSColor, in rect: NSRect) {
+    /// Number of dance frames (frame 0 is the rest pose).
+    static var mascotFrameCount: Int { mascotFrames.count }
+
+    private static func drawMascot(color: NSColor, in rect: NSRect, frame: Int = 0) {
+        let mascotGrid = mascotFrames[frame % mascotFrames.count]
         let cols = mascotGrid[0].count
         let rows = mascotGrid.count
         let cell = min(rect.width / CGFloat(cols), rect.height / CGFloat(rows))
