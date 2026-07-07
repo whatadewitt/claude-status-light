@@ -64,7 +64,8 @@ enum IconRenderer {
     /// `.` cells (eyes, gaps) stay transparent.
     ///
     /// Frame 0 is the rest pose (all static states). Frames 1 and 2 are the
-    /// working dance: the body sways right then left over planted feet.
+    /// working dance: the body sways right then left, and the trailing pair
+    /// of legs steps inward with each sway.
     private static let mascotFrames: [[String]] = [
         [
             ".XXXXXXXXXXX.",
@@ -89,8 +90,8 @@ enum IconRenderer {
             ".XXXXXXXXXXXX",
             "..XXXXXXXXXXX",
             "..XXXXXXXXXXX",
-            "..X.X...X.X..",
-            "..X.X...X.X..",
+            "...X.X..X.X..",
+            "...X.X..X.X..",
         ],
         [
             "XXXXXXXXXXX..",
@@ -102,8 +103,8 @@ enum IconRenderer {
             "XXXXXXXXXXXX.",
             "XXXXXXXXXXX..",
             "XXXXXXXXXXX..",
-            "..X.X...X.X..",
-            "..X.X...X.X..",
+            "..X.X..X.X...",
+            "..X.X..X.X...",
         ],
     ]
 
