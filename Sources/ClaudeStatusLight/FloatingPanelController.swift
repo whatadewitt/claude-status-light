@@ -94,9 +94,27 @@ final class FloatingPanelController: NSObject {
 
         container.menu = onRequestMenu?()
 
-        panel.setContentSize(container.fittingSize)
+        panel.setContentSize(NSSize(width: stableWidth(), height: container.fittingSize.height))
         panel.isMovableByWindowBackground = !Settings.shared.lockToCorner
         reposition()
+    }
+
+    /// Panel width sized for the worst-case title so state flips never change
+    /// it, and computed explicitly so both edge insets are honored (the stack
+    /// view's fittingSize drops the trailing inset). Only the session list can
+    /// widen it further.
+    private func stableWidth() -> CGFloat {
+        let titleFont = NSFont.boldSystemFont(ofSize: 12)
+        let states: [LightState] = [.off, .working, .idle, .attention]
+        let maxTitle = states
+            .map { ("Claude Code — \($0.label)" as NSString).size(withAttributes: [.font: titleFont]).width }
+            .max() ?? 0
+        let insets = container.edgeInsets.left + container.edgeInsets.right
+        let titleRow = 16 + 6 + ceil(maxTitle) // icon + spacing + text
+        let widestRow = container.arrangedSubviews
+            .map { $0.fittingSize.width }
+            .max() ?? 0
+        return max(titleRow, widestRow) + insets
     }
 
     private func makeLabel(_ text: String, bold: Bool, secondary: Bool = false) -> NSTextField {
