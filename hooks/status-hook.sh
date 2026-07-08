@@ -42,6 +42,15 @@ if [ "$STATE" = "attention" ]; then
     esac
 fi
 
+# AskUserQuestion never triggers a permission prompt, so no Notification
+# fires while it waits — without this, the light would sit on yellow even
+# though Claude is blocked on an answer. PostToolUse flips it back to working.
+if [ "$STATE" = "working" ]; then
+    case "$(extract tool_name)" in
+        AskUserQuestion) STATE="attention" ;;
+    esac
+fi
+
 # Sanitize for use as a filename (guard against path traversal).
 SAFE_ID="$(printf '%s' "$SESSION_ID" | tr -cd 'A-Za-z0-9._-')"
 [ -z "$SAFE_ID" ] && SAFE_ID="default"
