@@ -8,18 +8,18 @@ import AppKit
 /// - Otherwise the Claude Code pixel mascot is drawn, tinted to the state
 ///   color.
 enum IconRenderer {
-    static func icon(for state: LightState, side: CGFloat, background: NSColor? = nil, frame: Int = 0) -> NSImage {
+    static func icon(for state: LightState, side: CGFloat, background: NSColor? = nil, frame: Int = 0, agents: Int = 0) -> NSImage {
         let size = NSSize(width: side, height: side)
         let image = NSImage(size: size)
         image.lockFocus()
-        drawStatus(state: state, in: NSRect(origin: .zero, size: size), background: background, frame: frame)
+        drawStatus(state: state, in: NSRect(origin: .zero, size: size), background: background, frame: frame, agents: agents)
         image.unlockFocus()
         image.isTemplate = false
         return image
     }
 
     /// Draws the status glyph into the current graphics context.
-    private static func drawStatus(state: LightState, in rect: NSRect, background: NSColor?, frame: Int = 0) {
+    private static func drawStatus(state: LightState, in rect: NSRect, background: NSColor?, frame: Int = 0, agents: Int = 0) {
         if let bg = background {
             let inset = rect.width * 0.08
             let bgRect = rect.insetBy(dx: inset, dy: inset)
@@ -36,6 +36,32 @@ enum IconRenderer {
         } else {
             drawMascot(color: state.color, in: contentRect, frame: frame)
         }
+        if agents > 0 {
+            drawAgentBadge(count: agents, in: contentRect)
+        }
+    }
+
+    /// Running-subagent count: a blue dot with the number, pinned bottom-left
+    /// so it never collides with the custom-icon state dot at bottom-right.
+    /// Blue is deliberately outside the stoplight palette.
+    private static func drawAgentBadge(count: Int, in rect: NSRect) {
+        let r = rect.width * 0.26
+        let cx = rect.minX + r
+        let cy = rect.minY + r
+        let ringRect = NSRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
+        NSColor.white.setFill()
+        NSBezierPath(ovalIn: ringRect).fill()
+        NSColor.systemBlue.setFill()
+        NSBezierPath(ovalIn: ringRect.insetBy(dx: r * 0.14, dy: r * 0.14)).fill()
+
+        let text = NSAttributedString(
+            string: count > 9 ? "9" : "\(count)",
+            attributes: [
+                .font: NSFont.boldSystemFont(ofSize: r * 1.4),
+                .foregroundColor: NSColor.white,
+            ])
+        let size = text.size()
+        text.draw(at: NSPoint(x: cx - size.width / 2, y: cy - size.height / 2))
     }
 
     private static func customImage() -> NSImage? {

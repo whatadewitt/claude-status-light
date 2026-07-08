@@ -115,13 +115,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Renders the current state + dance frame onto every visible surface.
     private func applyIcons() {
-        statusBar.setIcon(IconRenderer.icon(for: currentState, side: 18, frame: danceFrame))
+        let agents = currentSessions.reduce(0) { $0 + $1.agents }
+        statusBar.setIcon(IconRenderer.icon(for: currentState, side: 18, frame: danceFrame, agents: agents))
         if Settings.shared.showFloatingWindow {
-            floating.setIcon(IconRenderer.icon(for: currentState, side: 16, frame: danceFrame))
+            floating.setIcon(IconRenderer.icon(for: currentState, side: 16, frame: danceFrame, agents: agents))
         }
         if Settings.shared.showDockIcon {
             NSApp.applicationIconImage = IconRenderer.icon(
-                for: currentState, side: 128, background: dockBackground, frame: danceFrame)
+                for: currentState, side: 128, background: dockBackground, frame: danceFrame, agents: agents)
         }
     }
 
@@ -154,7 +155,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hint.isEnabled = false
             menu.addItem(hint)
             for session in currentSessions {
-                let badge = session.isBackground ? " · background" : ""
+                var badge = session.isBackground ? " · background" : ""
+                if session.agents > 0 {
+                    badge += " · \(session.agents) agent\(session.agents == 1 ? "" : "s")"
+                }
                 let item = NSMenuItem(
                     title: "\(session.state.dot) \(session.project) — \(session.state.label)\(badge)",
                     action: #selector(ClosureInvoker.fire), keyEquivalent: ""

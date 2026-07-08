@@ -109,4 +109,45 @@ struct StateStoreTests {
         _ = try writeSession(id: "legacy", tty: "")
         #expect(store.activeSessions().first?.isBackground == false)
     }
+
+    // MARK: - Subagent markers
+
+    /// The hook records one marker file per running subagent in <id>.agents/.
+    private func writeAgentMarkers(id: String, count: Int) throws {
+        let agentsDir = dir.appendingPathComponent("\(id).agents", isDirectory: true)
+        try FileManager.default.createDirectory(at: agentsDir, withIntermediateDirectories: true)
+        for i in 0..<count {
+            FileManager.default.createFile(
+                atPath: agentsDir.appendingPathComponent("marker-\(i)").path, contents: nil)
+        }
+    }
+
+    @Test func countsSubagentMarkers() throws {
+        _ = try writeSession(id: "busy", state: "working",
+                             pid: Int(ProcessInfo.processInfo.processIdentifier))
+        try writeAgentMarkers(id: "busy", count: 3)
+        #expect(store.activeSessions().first?.agents == 3)
+    }
+
+    @Test func sessionWithoutMarkersHasZeroAgents() throws {
+        _ = try writeSession(id: "plain", pid: Int(ProcessInfo.processInfo.processIdentifier))
+        #expect(store.activeSessions().first?.agents == 0)
+    }
+
+    @Test func deadSessionCleanupAlsoRemovesAgentsDir() throws {
+        _ = try writeSession(id: "dead", pid: try deadPid())
+        try writeAgentMarkers(id: "dead", count: 2)
+        _ = store.activeSessions()
+        let agentsDir = dir.appendingPathComponent("dead.agents")
+        #expect(!FileManager.default.fileExists(atPath: agentsDir.path))
+    }
+
+    @Test func resetRemovesAgentMarkers() throws {
+        _ = try writeSession(id: "busy", pid: Int(ProcessInfo.processInfo.processIdentifier))
+        try writeAgentMarkers(id: "busy", count: 1)
+        store.reset()
+        let agentsDir = dir.appendingPathComponent("busy.agents")
+        #expect(!FileManager.default.fileExists(atPath: agentsDir.path))
+        #expect(store.activeSessions().isEmpty)
+    }
 }

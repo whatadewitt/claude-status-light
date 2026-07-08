@@ -45,6 +45,8 @@ struct SessionState {
     /// PID of the Claude Code process, when the hook could identify it.
     let pid: Int?
     let updatedAt: Date
+    /// Running subagents (one hook marker file each).
+    let agents: Int
 
     /// Headless sessions (daemon-spawned, background tasks): a known owning
     /// process but no controlling terminal.

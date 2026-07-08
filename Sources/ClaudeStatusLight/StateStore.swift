@@ -50,16 +50,22 @@ final class StateStore {
             // treat that (and anything non-signalable) as "unknown".
             let pid = (obj["pid"] as? Int).flatMap { $0 > 1 ? $0 : nil }
 
+            let agentsDir = url.deletingPathExtension().appendingPathExtension("agents")
+
             if let pid {
                 // Owning process gone → the session is over; clean up the file
                 // (covers Claude Code dying without firing SessionEnd).
                 if kill(pid_t(pid), 0) != 0 && errno == ESRCH {
                     try? fm.removeItem(at: url)
+                    try? fm.removeItem(at: agentsDir)
                     continue
                 }
             } else if now.timeIntervalSince(updatedAt) > staleAfter {
                 continue
             }
+
+            // One marker file per running subagent, maintained by the hook.
+            let agents = (try? fm.contentsOfDirectory(at: agentsDir, includingPropertiesForKeys: nil).count) ?? 0
 
             let id = (obj["session_id"] as? String) ?? url.deletingPathExtension().lastPathComponent
             result.append(SessionState(
@@ -69,7 +75,8 @@ final class StateStore {
                 termProgram: (obj["term_program"] as? String) ?? "unknown",
                 tty: (obj["tty"] as? String) ?? "",
                 pid: pid,
-                updatedAt: updatedAt
+                updatedAt: updatedAt,
+                agents: agents
             ))
         }
         return result.sorted { $0.updatedAt > $1.updatedAt }
@@ -95,7 +102,7 @@ final class StateStore {
             at: dir,
             includingPropertiesForKeys: nil
         ) else { return }
-        for url in files where url.pathExtension == "json" {
+        for url in files where url.pathExtension == "json" || url.pathExtension == "agents" {
             try? fm.removeItem(at: url)
         }
     }
