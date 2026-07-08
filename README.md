@@ -5,7 +5,7 @@ A tiny macOS menu bar stoplight that shows what Claude Code is doing at a glance
 | Light | Meaning |
 |-------|---------|
 | ⚪️ Off | Not running — no active session |
-| 🔴 Red | Waiting for your input — permission prompt / notification |
+| 🔴 Red | Waiting for your input — permission prompt or a question from Claude |
 | 🟡 Yellow | Running — tools / thinking |
 | 🟢 Green | Awaiting your next task (done) |
 
@@ -30,6 +30,12 @@ instead — the app draws the full-color artwork and adds a
 small stoplight status dot in the corner, so the mark stays recognizable while
 still showing state. Use **Set custom icon…** (in the menu) or **Reveal icon
 folder…** (in Settings) to open that folder in Finder.
+
+## Subagents
+
+When any session has subagents running, the icon gains a small blue count
+badge (blue on purpose — it's activity, not a stoplight state), and that
+session's row in the menu and floating window reads "· N agents".
 
 ## Jumping to a session's terminal
 
@@ -72,7 +78,15 @@ tasks) are real and still counted, but marked *background* in the session list.
 | `UserPromptSubmit`, `PreToolUse`, `PostToolUse` | working | 🟡 running |
 | `Notification` | attention | 🔴 waiting for input |
 | `Stop` | idle | 🟢 awaiting next task |
+| `SubagentStart` / `SubagentStop` | agent-start / agent-stop | 🔵 subagent count badge |
 | `SessionEnd` | — | (session removed) |
+
+Two classifications happen inside the hook rather than the table: the ~60s
+"Claude is waiting for your input" reminder notification is kept 🟢 (it just
+means "ready for your next prompt"), and a `PreToolUse` for `AskUserQuestion`
+is upgraded to 🔴 — Claude is blocked on your answer, but no permission
+notification ever fires for it. Subagent starts and stops maintain one marker
+file each next to the session's JSON; the app counts them for the badge.
 
 ## Install
 
