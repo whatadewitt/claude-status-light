@@ -23,13 +23,14 @@ mkdir -p "$DIR" 2>/dev/null
 # Slurp the hook payload from stdin (may be empty).
 INPUT="$(cat 2>/dev/null || true)"
 
-# Pull "key":"value" out of the payload without requiring jq.
-extract() {
-    printf '%s' "$INPUT" \
-        | grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" \
+# Pull "key":"value" out of a JSON string without requiring jq.
+extract_from() {
+    printf '%s' "$1" \
+        | grep -o "\"$2\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" \
         | head -1 \
         | sed 's/.*"\([^"]*\)"[[:space:]]*$/\1/'
 }
+extract() { extract_from "$INPUT" "$1"; }
 
 SESSION_ID="$(extract session_id)"
 [ -z "${SESSION_ID:-}" ] && SESSION_ID="default"
@@ -116,6 +117,26 @@ case "$TTY_DEV" in
     /dev/*)      TTY_PATH="$TTY_DEV" ;;
     *)           TTY_PATH="/dev/$TTY_DEV" ;;
 esac
+
+# Terminal identity is sticky. Claude Code's background-task daemon fires
+# events for a session from helper processes that have no controlling
+# terminal; letting those overwrite term/tty/pid would strip an interactive
+# session of its terminal (it then renders as "(bg)" and can't be focused).
+# When this event's process has no tty but the session already recorded one,
+# keep the recorded identity — a later event from a real terminal, which has
+# a tty, still updates it.
+if [ -z "$TTY_PATH" ] && [ -f "$FILE" ]; then
+    PREV="$(cat "$FILE" 2>/dev/null || true)"
+    PREV_TTY="$(extract_from "$PREV" tty)"
+    if [ -n "$PREV_TTY" ]; then
+        TTY_PATH="$PREV_TTY"
+        TERM_PROG="$(extract_from "$PREV" term_program)"
+        PREV_PID="$(printf '%s' "$PREV" \
+            | grep -o '"pid"[[:space:]]*:[[:space:]]*[0-9][0-9]*' \
+            | head -1 | grep -o '[0-9][0-9]*$')"
+        [ -n "$PREV_PID" ] && CLAUDE_PID="$PREV_PID"
+    fi
+fi
 
 if [ "$STATE" = "end" ]; then
     rm -f "$FILE" 2>/dev/null

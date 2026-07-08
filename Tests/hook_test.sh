@@ -119,4 +119,53 @@ printf '{"session_id":"test-agents"}' | bash "$HOOK" end
     || { echo "FAIL: end left artifacts behind" >&2; exit 1; }
 echo "ok"
 
+echo "--- terminal identity survives events fired from a ttyless daemon process"
+python3 - "$HOOK" <<'PY'
+import json, os, subprocess, sys
+base = os.path.expanduser("~/.claude/status-light/sessions/")
+os.makedirs(base, exist_ok=True)
+# As if an earlier event from the interactive terminal recorded its identity.
+with open(base + "test-sticky.json", "w") as f:
+    json.dump({"state": "idle", "session_id": "test-sticky", "cwd": "/tmp/proj",
+               "term_program": "iTerm.app", "tty": "/dev/ttys000",
+               "pid": 4242, "updated_at": 1}, f)
+# Fire the next event from a process with no controlling terminal (setsid),
+# the way `claude daemon` spare processes fire events for the same session.
+child = """
+import json, subprocess, sys
+payload = json.dumps({"session_id": "test-sticky", "cwd": "/tmp/proj"})
+subprocess.run(["bash", sys.argv[1], "working"], input=payload.encode(), check=True)
+"""
+subprocess.run([sys.executable, "-c", child, sys.argv[1]],
+               check=True, preexec_fn=os.setsid)
+data = json.load(open(base + "test-sticky.json"))
+assert data["state"] == "working", data
+assert data["term_program"] == "iTerm.app", data
+assert data["tty"] == "/dev/ttys000", data
+assert data["pid"] == 4242, data
+print("ok")
+PY
+
+echo "--- no stickiness when the session never had a terminal"
+python3 - "$HOOK" <<'PY'
+import json, os, subprocess, sys
+base = os.path.expanduser("~/.claude/status-light/sessions/")
+with open(base + "test-headless.json", "w") as f:
+    json.dump({"state": "idle", "session_id": "test-headless", "cwd": "/tmp/proj",
+               "term_program": "unknown", "tty": "", "pid": 4242, "updated_at": 1}, f)
+child = """
+import json, os, subprocess, sys
+payload = json.dumps({"session_id": "test-headless", "cwd": "/tmp/proj"})
+subprocess.run(["bash", sys.argv[1], "working"], input=payload.encode(), check=True)
+print(os.getpid())
+"""
+out = subprocess.run([sys.executable, "-c", child, sys.argv[1]],
+                     check=True, preexec_fn=os.setsid, capture_output=True)
+child_pid = int(out.stdout)
+data = json.load(open(base + "test-headless.json"))
+assert data["state"] == "working", data
+assert data["pid"] == child_pid, f"pid: expected {child_pid}, got {data.get('pid')!r}"
+print("ok")
+PY
+
 echo "All hook tests passed."
