@@ -93,7 +93,7 @@ file each next to the session's JSON; the app counts them for the badge.
 Requires macOS with Xcode or the Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone <this repo>
+git clone git@github.com:whatadewitt/claude-status-light.git
 cd claude-status-light
 ./scripts/install.sh
 ```
