@@ -89,6 +89,10 @@ fi
 CWD="$(extract cwd)"
 [ -z "${CWD:-}" ] && CWD="$PWD"
 
+# Where Claude Code writes this session's transcript. The app reads it to
+# show what a background agent is working on (its title lines).
+TRANSCRIPT="$(extract transcript_path)"
+
 TERM_PROG="${TERM_PROGRAM:-unknown}"
 
 # Nearest non-shell ancestor: the Claude Code process that spawned this hook
@@ -144,13 +148,14 @@ if [ "$STATE" = "end" ]; then
 else
     # Minimal JSON string escaping (backslash then quote).
     esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-    printf '{"state":"%s","session_id":"%s","cwd":"%s","term_program":"%s","tty":"%s","pid":%d,"updated_at":%s}\n' \
+    printf '{"state":"%s","session_id":"%s","cwd":"%s","term_program":"%s","tty":"%s","pid":%d,"transcript_path":"%s","updated_at":%s}\n' \
         "$STATE" \
         "$(esc "$SESSION_ID")" \
         "$(esc "$CWD")" \
         "$(esc "$TERM_PROG")" \
         "$(esc "$TTY_PATH")" \
         "${CLAUDE_PID:-0}" \
+        "$(esc "$TRANSCRIPT")" \
         "$(date +%s)" \
         > "$FILE" 2>/dev/null
 fi

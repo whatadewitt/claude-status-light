@@ -54,6 +54,19 @@ assert isinstance(data["updated_at"], int), data
 print("ok")
 PY
 
+echo "--- transcript_path from the payload lands in the session file"
+printf '{"session_id":"test-transcript","cwd":"/tmp/proj","transcript_path":"/tmp/t/abc.jsonl"}' | bash "$HOOK" working
+printf '{"session_id":"test-no-transcript","cwd":"/tmp/proj"}' | bash "$HOOK" working
+python3 - <<'PY'
+import json, os
+base = os.path.expanduser("~/.claude/status-light/sessions/")
+data = json.load(open(base + "test-transcript.json"))
+assert data["transcript_path"] == "/tmp/t/abc.jsonl", data
+bare = json.load(open(base + "test-no-transcript.json"))
+assert bare.get("transcript_path", "") == "", bare
+print("ok")
+PY
+
 echo "--- attention downgrades to idle for the 'waiting for your input' reminder"
 printf '{"session_id":"test-idle-note","message":"Claude is waiting for your input"}' | bash "$HOOK" attention
 printf '{"session_id":"test-perm-note","message":"Claude needs your permission to use Bash"}' | bash "$HOOK" attention

@@ -16,6 +16,10 @@ final class StateStore {
 
     private let dir: URL
 
+    /// Transcript title per path, keyed on file size so an unchanged
+    /// transcript costs one stat per poll instead of a re-read.
+    private var titleCache: [String: (size: Int64, title: String?)] = [:]
+
     init(sessionsDir: URL = StateStore.sessionsDir) {
         self.dir = sessionsDir
     }
@@ -76,10 +80,54 @@ final class StateStore {
                 tty: (obj["tty"] as? String) ?? "",
                 pid: pid,
                 updatedAt: updatedAt,
-                agents: agents
+                agents: agents,
+                title: title(forTranscriptAt: (obj["transcript_path"] as? String) ?? "")
             ))
         }
         return result.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    // MARK: - Transcript titles
+
+    /// The session's task title from its transcript. Title lines
+    /// ({"type":"agent-name","agentName":…} / {"type":"ai-title","aiTitle":…})
+    /// are written near the top, so reading the head is enough.
+    private func title(forTranscriptAt path: String) -> String? {
+        guard !path.isEmpty,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attrs[.size] as? Int64
+        else { return nil }
+
+        if let cached = titleCache[path], cached.size == size {
+            return cached.title
+        }
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: 64 * 1024) else { return nil }
+
+        let title = Self.extractTitle(from: String(decoding: head, as: UTF8.self))
+        titleCache[path] = (size, title)
+        return title
+    }
+
+    /// Latest agent-name in the given transcript head, falling back to the
+    /// latest ai-title. A line cut off by the 64KB window fails to decode and
+    /// is skipped.
+    private static func extractTitle(from head: String) -> String? {
+        var agentName: String?
+        var aiTitle: String?
+        for line in head.split(separator: "\n") {
+            guard line.contains("\"agent-name\"") || line.contains("\"ai-title\"") else { continue }
+            guard let obj = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any]
+            else { continue }
+            switch obj["type"] as? String {
+            case "agent-name": agentName = (obj["agentName"] as? String) ?? agentName
+            case "ai-title":   aiTitle = (obj["aiTitle"] as? String) ?? aiTitle
+            default: break
+            }
+        }
+        let title = agentName ?? aiTitle
+        return (title?.isEmpty ?? true) ? nil : title
     }
 
     /// Highest-priority state across sessions. Red (blocked on you) always wins;

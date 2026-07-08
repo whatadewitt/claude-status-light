@@ -19,7 +19,8 @@ struct StateStoreTests {
         state: String = "idle",
         pid: Int? = nil,
         tty: String = "",
-        age: TimeInterval = 0
+        age: TimeInterval = 0,
+        transcriptPath: String? = nil
     ) throws -> URL {
         var obj: [String: Any] = [
             "state": state,
@@ -30,6 +31,7 @@ struct StateStoreTests {
             "updated_at": Date().timeIntervalSince1970 - age,
         ]
         if let pid { obj["pid"] = pid }
+        if let transcriptPath { obj["transcript_path"] = transcriptPath }
         let url = dir.appendingPathComponent("\(id).json")
         try JSONSerialization.data(withJSONObject: obj).write(to: url)
         return url
@@ -140,6 +142,65 @@ struct StateStoreTests {
         _ = store.activeSessions()
         let agentsDir = dir.appendingPathComponent("dead.agents")
         #expect(!FileManager.default.fileExists(atPath: agentsDir.path))
+    }
+
+    // MARK: - Background agent titles
+
+    /// Background agent transcripts begin with title lines like
+    /// {"type":"agent-name","agentName":"…"} / {"type":"ai-title","aiTitle":"…"}.
+    private func writeTranscript(_ lines: [String]) throws -> String {
+        let url = dir.appendingPathComponent("transcript-\(UUID().uuidString).jsonl")
+        try (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+        return url.path
+    }
+
+    private func bgSession(id: String, transcript: String?) throws {
+        _ = try writeSession(id: id, pid: Int(ProcessInfo.processInfo.processIdentifier),
+                             tty: "", transcriptPath: transcript)
+    }
+
+    @Test func agentNameBecomesTitle() throws {
+        let path = try writeTranscript([
+            #"{"type":"ai-title","aiTitle":"older title","sessionId":"x"}"#,
+            #"{"type":"agent-name","agentName":"Improve win rate","sessionId":"x"}"#,
+            #"{"type":"mode","mode":"normal"}"#,
+        ])
+        try bgSession(id: "titled", transcript: path)
+        #expect(store.activeSessions().first?.title == "Improve win rate")
+    }
+
+    @Test func lastAgentNameWins() throws {
+        let path = try writeTranscript([
+            #"{"type":"agent-name","agentName":"first"}"#,
+            #"{"type":"agent-name","agentName":"renamed"}"#,
+        ])
+        try bgSession(id: "renamed", transcript: path)
+        #expect(store.activeSessions().first?.title == "renamed")
+    }
+
+    @Test func fallsBackToAiTitle() throws {
+        let path = try writeTranscript([#"{"type":"ai-title","aiTitle":"only ai title"}"#])
+        try bgSession(id: "ai-only", transcript: path)
+        #expect(store.activeSessions().first?.title == "only ai title")
+    }
+
+    @Test func noTranscriptMeansNoTitle() throws {
+        try bgSession(id: "bare", transcript: nil)
+        try bgSession(id: "gone", transcript: dir.appendingPathComponent("missing.jsonl").path)
+        for session in store.activeSessions() {
+            #expect(session.title == nil)
+        }
+    }
+
+    @Test func titleRefreshesWhenTranscriptGrows() throws {
+        let path = try writeTranscript([#"{"type":"agent-name","agentName":"before"}"#])
+        try bgSession(id: "grows", transcript: path)
+        #expect(store.activeSessions().first?.title == "before")
+        let handle = FileHandle(forWritingAtPath: path)!
+        defer { try? handle.close() }
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data("{\"type\":\"agent-name\",\"agentName\":\"after\"}\n".utf8))
+        #expect(store.activeSessions().first?.title == "after")
     }
 
     @Test func resetRemovesAgentMarkers() throws {

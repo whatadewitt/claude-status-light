@@ -155,12 +155,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hint.isEnabled = false
             menu.addItem(hint)
             for session in currentSessions {
-                var badge = session.isBackground ? " · background" : ""
-                if session.agents > 0 {
-                    badge += " · \(session.agents) agent\(session.agents == 1 ? "" : "s")"
-                }
                 let item = NSMenuItem(
-                    title: "\(session.state.dot) \(session.project) — \(session.state.label)\(badge)",
+                    title: "\(session.state.dot) \(session.displayName) — \(session.state.label)\(session.agentsSuffix)",
                     action: #selector(ClosureInvoker.fire), keyEquivalent: ""
                 )
                 let invoker = ClosureInvoker { TerminalFocuser.focus(session) }

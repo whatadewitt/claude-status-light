@@ -130,11 +130,7 @@ final class FloatingPanelController: NSObject {
     }
 
     private func makeSessionButton(_ session: SessionState) -> NSButton {
-        var badge = session.isBackground ? " (bg)" : ""
-        if session.agents > 0 {
-            badge += " · \(session.agents) agent\(session.agents == 1 ? "" : "s")"
-        }
-        let button = NSButton(title: "\(session.state.dot) \(session.project)\(badge)", target: nil, action: nil)
+        let button = NSButton(title: "\(session.state.dot) \(session.displayName)\(session.agentsSuffix)", target: nil, action: nil)
         button.isBordered = false
         button.alignment = .left
         button.contentTintColor = .labelColor

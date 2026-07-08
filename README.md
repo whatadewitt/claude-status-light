@@ -70,7 +70,12 @@ concurrent sessions aggregate correctly.
 The recorded PID keeps the list honest: if a session's process is gone (terminal
 closed, crash — anything that skips `SessionEnd`), the app drops it immediately and
 deletes its file. Headless sessions with no terminal (e.g. daemon-spawned background
-tasks) are real and still counted, but marked *background* in the session list.
+agents) are real and still counted; the session list shows what each one is working
+on — its task title, read from the transcript path the hook records (e.g.
+`mlb-props · Improve system win rate from 59%`) — falling back to `(bg)` for
+untitled ones like pre-warmed spares. Terminal identity is sticky: daemon
+processes may fire events for an interactive session, and their missing tty
+must not strip the session's recorded terminal.
 
 | Hook event | State | Light |
 |------------|-------|-------|
