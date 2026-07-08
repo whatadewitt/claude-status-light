@@ -2,7 +2,9 @@
 # Claude Code status-light hook.
 #
 # Usage (from settings.json):  status-hook.sh <state>
-#   where <state> is one of: idle | working | attention | end
+#   where <state> is one of:
+#     idle | working | attention | end   — session light states
+#     agent-start | agent-stop           — subagent began / finished
 #
 # Reads the Claude Code hook payload (JSON) on stdin, extracts the session_id
 # and cwd, captures the terminal (TERM_PROGRAM + tty) it is running in and the
@@ -55,6 +57,34 @@ fi
 SAFE_ID="$(printf '%s' "$SESSION_ID" | tr -cd 'A-Za-z0-9._-')"
 [ -z "$SAFE_ID" ] && SAFE_ID="default"
 
+FILE="$DIR/$SAFE_ID.json"
+AGENTS_DIR="$DIR/$SAFE_ID.agents"
+
+# Subagent lifecycle (SubagentStart/SubagentStop events): one marker file per
+# running subagent, so concurrent starts can't lose updates the way a shared
+# counter would. $$ is unique among live hook processes. These events never
+# touch the session state file; the app counts the markers. Ignore starts for
+# unknown sessions so a surprising payload can't create ghost artifacts.
+case "$STATE" in
+    agent-start)
+        [ -f "$FILE" ] || exit 0
+        mkdir -p "$AGENTS_DIR" 2>/dev/null
+        : > "$AGENTS_DIR/$$.$(date +%s)" 2>/dev/null
+        exit 0
+        ;;
+    agent-stop)
+        MARKER="$(ls "$AGENTS_DIR" 2>/dev/null | head -1)"
+        [ -n "$MARKER" ] && rm -f "$AGENTS_DIR/$MARKER" 2>/dev/null
+        exit 0
+        ;;
+esac
+
+# A fresh session cannot have running subagents — drop leftovers from a
+# previous run that reused this id (resume, or death without SessionEnd).
+if [ "$(extract hook_event_name)" = "SessionStart" ]; then
+    rm -rf "$AGENTS_DIR" 2>/dev/null
+fi
+
 CWD="$(extract cwd)"
 [ -z "${CWD:-}" ] && CWD="$PWD"
 
@@ -87,10 +117,9 @@ case "$TTY_DEV" in
     *)           TTY_PATH="/dev/$TTY_DEV" ;;
 esac
 
-FILE="$DIR/$SAFE_ID.json"
-
 if [ "$STATE" = "end" ]; then
     rm -f "$FILE" 2>/dev/null
+    rm -rf "$AGENTS_DIR" 2>/dev/null
 else
     # Minimal JSON string escaping (backslash then quote).
     esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }

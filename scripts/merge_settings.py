@@ -22,6 +22,8 @@ EVENT_STATES = {
     "PostToolUse": "working",
     "Notification": "attention",
     "Stop": "idle",
+    "SubagentStart": "agent-start",
+    "SubagentStop": "agent-stop",
     "SessionEnd": "end",
 }
 
