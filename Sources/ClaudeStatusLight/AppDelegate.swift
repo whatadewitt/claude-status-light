@@ -159,6 +159,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)",
                     action: #selector(ClosureInvoker.fire), keyEquivalent: ""
                 )
+                if session.isParked {
+                    item.attributedTitle = NSAttributedString(
+                        string: item.title,
+                        attributes: [
+                            .foregroundColor: NSColor.secondaryLabelColor,
+                            .font: NSFont.menuFont(ofSize: 0),
+                        ])
+                }
                 let invoker = ClosureInvoker { TerminalFocuser.focus(session) }
                 item.target = invoker
                 item.representedObject = invoker // retain

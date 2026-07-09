@@ -82,7 +82,14 @@ events at all, so the app reads the process table instead: children of a
 session's pid carrying the `~/.claude/shell-snapshots/` wrapper signature are
 Claude-spawned work still running. An otherwise-idle session with a running
 shell shows 🟡 with the command inline (`mlb-props · sh: uv run python …`) —
-Claude may be done talking, but the work it started isn't finished.
+Claude may be done talking, but the work it started isn't finished. Titled
+agent rows keep the command in the tooltip only; the title already says what
+they're doing.
+
+Claude Code parks finished background agents instead of exiting them, so a
+headless session that's been idle for 2+ minutes dims to gray — still a live
+process (the row stays, dot stays green), just without the visual weight of
+sessions that matter right now.
 
 | Hook event | State | Light |
 |------------|-------|-------|

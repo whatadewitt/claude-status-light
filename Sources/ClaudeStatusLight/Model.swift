@@ -57,6 +57,14 @@ struct SessionState {
     /// process but no controlling terminal.
     var isBackground: Bool { pid != nil && tty.isEmpty }
 
+    /// Claude Code parks finished background agents instead of exiting them —
+    /// alive "awaiting next task" but doing nothing. Quiet headless idle rows
+    /// get dimmed so live work keeps the visual weight. Interactive terminals
+    /// idling at a prompt are normal, never parked.
+    var isParked: Bool {
+        isBackground && state == .idle && Date().timeIntervalSince(updatedAt) > 2 * 60
+    }
+
     /// Human label for the menu — the project folder name.
     var project: String {
         let name = (cwd as NSString).lastPathComponent
@@ -97,7 +105,10 @@ struct SessionState {
     /// Hover detail shared by the menu and the floating panel.
     var tooltip: String {
         var lines = [cwd, "\(termProgram) · \(tty.isEmpty ? "tty unknown" : tty)"]
-        if isBackground {
+        if isParked {
+            let minutes = Int(Date().timeIntervalSince(updatedAt) / 60)
+            lines.append("parked — idle \(minutes)m, process alive")
+        } else if isBackground {
             lines.append("background session (no terminal)")
         }
         lines.append(contentsOf: shells.map { "sh: \($0.prefix(300))" })

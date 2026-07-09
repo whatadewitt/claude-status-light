@@ -5,16 +5,19 @@ import Testing
 /// The row descriptor shared by the menu and the floating panel.
 struct SessionLabelTests {
     private func session(
+        state: LightState = .idle,
         tty: String = "",
         pid: Int? = 4242,
+        age: TimeInterval = 0,
         agents: Int = 0,
         title: String? = nil,
         shells: [String] = []
     ) -> SessionState {
         SessionState(
-            sessionID: "s", state: .idle, cwd: "/tmp/mlb-props",
+            sessionID: "s", state: state, cwd: "/tmp/mlb-props",
             termProgram: "unknown", tty: tty, pid: pid,
-            updatedAt: Date(), agents: agents, title: title, shells: shells
+            updatedAt: Date().addingTimeInterval(-age),
+            agents: agents, title: title, shells: shells
         )
     }
 
@@ -76,5 +79,18 @@ struct SessionLabelTests {
 
     @Test func tooltipMarksBackgroundSessions() {
         #expect(session().tooltip == "/tmp/mlb-props\nunknown · tty unknown\nbackground session (no terminal)")
+    }
+
+    // MARK: - Parked agents (idle, headless, quiet)
+
+    @Test func quietIdleBackgroundSessionIsParked() {
+        #expect(session(age: 3 * 60).isParked == true)
+        #expect(session(age: 3 * 60).tooltip.contains("parked — idle 3m, process alive"))
+    }
+
+    @Test func freshOrBusyOrInteractiveSessionsAreNotParked() {
+        #expect(session(age: 30).isParked == false)                               // fresh
+        #expect(session(state: .working, age: 3 * 60).isParked == false)          // busy
+        #expect(session(tty: "/dev/ttys000", age: 60 * 60).isParked == false)     // interactive
     }
 }

@@ -133,7 +133,7 @@ final class FloatingPanelController: NSObject {
         let button = NSButton(title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix)\(session.agentsSuffix)", target: nil, action: nil)
         button.isBordered = false
         button.alignment = .left
-        button.contentTintColor = .labelColor
+        button.contentTintColor = session.isParked ? .secondaryLabelColor : .labelColor
         button.font = .systemFont(ofSize: 12)
         button.toolTip = session.tooltip
         let invoker = ClosureInvoker { [weak self] in self?.onFocus?(session) }
