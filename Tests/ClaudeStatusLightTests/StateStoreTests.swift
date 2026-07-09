@@ -223,6 +223,15 @@ struct StateStoreTests {
         #expect(store.activeSessions().first?.state == .attention)
     }
 
+    @Test func workingSessionDoesNotSurfaceItsShells() throws {
+        // While Claude itself is active, tool shells are ordinary activity —
+        // the shell is only the story when it keeps an idle session busy.
+        _ = try writeSession(id: "active", state: "working",
+                             pid: Int(ProcessInfo.processInfo.processIdentifier))
+        let store = StateStore(sessionsDir: dir, shellsForPid: { _ in ["sleep 30"] })
+        #expect(store.activeSessions().first?.shells.isEmpty == true)
+    }
+
     @Test func sessionWithoutPidIsNeverScanned() throws {
         _ = try writeSession(id: "legacy-idle", state: "idle")
         let store = StateStore(sessionsDir: dir, shellsForPid: { _ in ["phantom"] })

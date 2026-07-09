@@ -83,9 +83,11 @@ final class StateStore {
 
             // Background shells fire no hook events; the process table is the
             // only signal. Work Claude spawned is still running, so an idle
-            // session is really working — but red (blocked on you) still wins.
-            let shells = pid.map(shellsForPid) ?? []
-            let effectiveState: LightState = (state == .idle && !shells.isEmpty) ? .working : state
+            // session is really working. Only idle sessions are scanned: when
+            // Claude itself is active (or red, blocked on you), tool shells
+            // are ordinary activity and would just be noise in the row.
+            let shells = (state == .idle ? pid.map(shellsForPid) : nil) ?? []
+            let effectiveState: LightState = shells.isEmpty ? state : .working
 
             result.append(SessionState(
                 sessionID: id,
