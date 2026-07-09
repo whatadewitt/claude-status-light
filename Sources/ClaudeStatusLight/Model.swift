@@ -83,8 +83,10 @@ struct SessionState {
 
     /// What Claude-spawned shell work is still running: the first command
     /// (truncated), with a count when there are several. Full commands are
-    /// in the tooltip.
+    /// in the tooltip. Titled agent rows suppress this — the title already
+    /// says what the agent is doing; its shells still turn the row yellow.
     var shellsSuffix: String {
+        if isBackground && !(title ?? "").isEmpty { return "" }
         guard var cmd = shells.first else { return "" }
         if cmd.count > 40 {
             cmd = cmd.prefix(39) + "…"

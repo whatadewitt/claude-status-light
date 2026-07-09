@@ -57,6 +57,18 @@ struct SessionLabelTests {
                 == " · 2 sh: first command")
     }
 
+    @Test func titledAgentRowSuppressesShellDetail() {
+        // A titled background agent already says what it's doing; its shells
+        // stay in the tooltip (and keep the row yellow) but out of the label.
+        let agent = session(title: "Improve win rate", shells: ["uv run python sweep.py"])
+        #expect(agent.shellsSuffix == "")
+        #expect(agent.tooltip.contains("sh: uv run python sweep.py"))
+        // An interactive session with a running shell keeps the inline detail
+        // even if its transcript happens to have a title.
+        let interactive = session(tty: "/dev/ttys000", title: "chat title", shells: ["sleep 5"])
+        #expect(interactive.shellsSuffix == " · sh: sleep 5")
+    }
+
     @Test func tooltipListsFullShellCommands() {
         let s = session(tty: "/dev/ttys000", shells: ["uv run python train.py --all"])
         #expect(s.tooltip == "/tmp/mlb-props\nunknown · /dev/ttys000\nsh: uv run python train.py --all")
