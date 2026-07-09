@@ -11,7 +11,9 @@ struct StateStoreTests {
         dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("state-store-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        store = StateStore(sessionsDir: dir)
+        // No live scanning: other suites spawn signature shells under this
+        // same test process, and sessions here record its pid.
+        store = StateStore(sessionsDir: dir, shellsForPid: { _ in [] })
     }
 
     private func writeSession(
@@ -201,6 +203,32 @@ struct StateStoreTests {
         try handle.seekToEnd()
         try handle.write(contentsOf: Data("{\"type\":\"agent-name\",\"agentName\":\"after\"}\n".utf8))
         #expect(store.activeSessions().first?.title == "after")
+    }
+
+    // MARK: - Running background shells
+
+    @Test func idleSessionWithRunningShellUpgradesToWorking() throws {
+        _ = try writeSession(id: "grinding", state: "idle",
+                             pid: Int(ProcessInfo.processInfo.processIdentifier))
+        let store = StateStore(sessionsDir: dir, shellsForPid: { _ in ["uv run python train.py"] })
+        let session = store.activeSessions().first
+        #expect(session?.state == .working)
+        #expect(session?.shells == ["uv run python train.py"])
+    }
+
+    @Test func attentionIsNeverMaskedByShells() throws {
+        _ = try writeSession(id: "blocked", state: "attention",
+                             pid: Int(ProcessInfo.processInfo.processIdentifier))
+        let store = StateStore(sessionsDir: dir, shellsForPid: { _ in ["sleep 30"] })
+        #expect(store.activeSessions().first?.state == .attention)
+    }
+
+    @Test func sessionWithoutPidIsNeverScanned() throws {
+        _ = try writeSession(id: "legacy-idle", state: "idle")
+        let store = StateStore(sessionsDir: dir, shellsForPid: { _ in ["phantom"] })
+        let session = store.activeSessions().first
+        #expect(session?.state == .idle)
+        #expect(session?.shells.isEmpty == true)
     }
 
     @Test func resetRemovesAgentMarkers() throws {

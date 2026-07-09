@@ -77,6 +77,13 @@ untitled ones like pre-warmed spares. Terminal identity is sticky: daemon
 processes may fire events for an interactive session, and their missing tty
 must not strip the session's recorded terminal.
 
+Background shells (Bash commands run with `run_in_background`) fire no hook
+events at all, so the app reads the process table instead: children of a
+session's pid carrying the `~/.claude/shell-snapshots/` wrapper signature are
+Claude-spawned work still running. An otherwise-idle session with a running
+shell shows 🟡 with the command inline (`mlb-props · sh: uv run python …`) —
+Claude may be done talking, but the work it started isn't finished.
+
 | Hook event | State | Light |
 |------------|-------|-------|
 | `SessionStart` | idle | 🟢 awaiting next task |

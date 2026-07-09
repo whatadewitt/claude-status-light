@@ -156,13 +156,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(hint)
             for session in currentSessions {
                 let item = NSMenuItem(
-                    title: "\(session.state.dot) \(session.displayName) — \(session.state.label)\(session.agentsSuffix)",
+                    title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)",
                     action: #selector(ClosureInvoker.fire), keyEquivalent: ""
                 )
                 let invoker = ClosureInvoker { TerminalFocuser.focus(session) }
                 item.target = invoker
                 item.representedObject = invoker // retain
-                item.toolTip = "\(session.cwd)\n\(session.termProgram) · \(session.tty.isEmpty ? "tty unknown" : session.tty)"
+                item.toolTip = session.tooltip
                 menu.addItem(item)
             }
         }

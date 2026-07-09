@@ -8,12 +8,13 @@ struct SessionLabelTests {
         tty: String = "",
         pid: Int? = 4242,
         agents: Int = 0,
-        title: String? = nil
+        title: String? = nil,
+        shells: [String] = []
     ) -> SessionState {
         SessionState(
             sessionID: "s", state: .idle, cwd: "/tmp/mlb-props",
             termProgram: "unknown", tty: tty, pid: pid,
-            updatedAt: Date(), agents: agents, title: title
+            updatedAt: Date(), agents: agents, title: title, shells: shells
         )
     }
 
@@ -40,5 +41,28 @@ struct SessionLabelTests {
         #expect(session().agentsSuffix == "")
         #expect(session(agents: 1).agentsSuffix == " · 1 agent")
         #expect(session(agents: 3).agentsSuffix == " · 3 agents")
+    }
+
+    @Test func shellsSuffixShowsTheCommand() {
+        #expect(session().shellsSuffix == "")
+        #expect(session(shells: ["uv run python train.py"]).shellsSuffix
+                == " · sh: uv run python train.py")
+    }
+
+    @Test func shellsSuffixTruncatesAndCounts() {
+        let long = String(repeating: "x", count: 60)
+        #expect(session(shells: [long]).shellsSuffix
+                == " · sh: " + String(repeating: "x", count: 39) + "…")
+        #expect(session(shells: ["first command", "second"]).shellsSuffix
+                == " · 2 sh: first command")
+    }
+
+    @Test func tooltipListsFullShellCommands() {
+        let s = session(tty: "/dev/ttys000", shells: ["uv run python train.py --all"])
+        #expect(s.tooltip == "/tmp/mlb-props\nunknown · /dev/ttys000\nsh: uv run python train.py --all")
+    }
+
+    @Test func tooltipMarksBackgroundSessions() {
+        #expect(session().tooltip == "/tmp/mlb-props\nunknown · tty unknown\nbackground session (no terminal)")
     }
 }

@@ -130,13 +130,12 @@ final class FloatingPanelController: NSObject {
     }
 
     private func makeSessionButton(_ session: SessionState) -> NSButton {
-        let button = NSButton(title: "\(session.state.dot) \(session.displayName)\(session.agentsSuffix)", target: nil, action: nil)
+        let button = NSButton(title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix)\(session.agentsSuffix)", target: nil, action: nil)
         button.isBordered = false
         button.alignment = .left
         button.contentTintColor = .labelColor
         button.font = .systemFont(ofSize: 12)
-        button.toolTip = "\(session.cwd)\n\(session.termProgram) · \(session.tty.isEmpty ? "tty unknown" : session.tty)"
-            + (session.isBackground ? "\nbackground session (no terminal)" : "")
+        button.toolTip = session.tooltip
         let invoker = ClosureInvoker { [weak self] in self?.onFocus?(session) }
         button.target = invoker
         button.action = #selector(ClosureInvoker.fire)

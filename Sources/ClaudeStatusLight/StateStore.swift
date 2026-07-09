@@ -20,8 +20,16 @@ final class StateStore {
     /// transcript costs one stat per poll instead of a re-read.
     private var titleCache: [String: (size: Int64, title: String?)] = [:]
 
-    init(sessionsDir: URL = StateStore.sessionsDir) {
+    /// Bash tool shells still running under a session pid — injectable so
+    /// tests don't depend on the live process table.
+    private let shellsForPid: (Int) -> [String]
+
+    init(
+        sessionsDir: URL = StateStore.sessionsDir,
+        shellsForPid: @escaping (Int) -> [String] = ShellScanner.runningShells(childrenOf:)
+    ) {
         self.dir = sessionsDir
+        self.shellsForPid = shellsForPid
     }
 
     func activeSessions() -> [SessionState] {
@@ -72,16 +80,24 @@ final class StateStore {
             let agents = (try? fm.contentsOfDirectory(at: agentsDir, includingPropertiesForKeys: nil).count) ?? 0
 
             let id = (obj["session_id"] as? String) ?? url.deletingPathExtension().lastPathComponent
+
+            // Background shells fire no hook events; the process table is the
+            // only signal. Work Claude spawned is still running, so an idle
+            // session is really working — but red (blocked on you) still wins.
+            let shells = pid.map(shellsForPid) ?? []
+            let effectiveState: LightState = (state == .idle && !shells.isEmpty) ? .working : state
+
             result.append(SessionState(
                 sessionID: id,
-                state: state,
+                state: effectiveState,
                 cwd: (obj["cwd"] as? String) ?? "",
                 termProgram: (obj["term_program"] as? String) ?? "unknown",
                 tty: (obj["tty"] as? String) ?? "",
                 pid: pid,
                 updatedAt: updatedAt,
                 agents: agents,
-                title: title(forTranscriptAt: (obj["transcript_path"] as? String) ?? "")
+                title: title(forTranscriptAt: (obj["transcript_path"] as? String) ?? ""),
+                shells: shells
             ))
         }
         return result.sorted { $0.updatedAt > $1.updatedAt }

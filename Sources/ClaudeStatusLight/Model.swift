@@ -50,6 +50,8 @@ struct SessionState {
     /// The session's task title from its transcript (background agents get
     /// an AI-generated one), when the transcript is available and titled.
     let title: String?
+    /// Commands of Bash tool shells still running under this session's pid.
+    let shells: [String]
 
     /// Headless sessions (daemon-spawned, background tasks): a known owning
     /// process but no controlling terminal.
@@ -77,5 +79,26 @@ struct SessionState {
     /// " · N agent(s)" when subagents are running, empty otherwise.
     var agentsSuffix: String {
         agents > 0 ? " · \(agents) agent\(agents == 1 ? "" : "s")" : ""
+    }
+
+    /// What Claude-spawned shell work is still running: the first command
+    /// (truncated), with a count when there are several. Full commands are
+    /// in the tooltip.
+    var shellsSuffix: String {
+        guard var cmd = shells.first else { return "" }
+        if cmd.count > 40 {
+            cmd = cmd.prefix(39) + "…"
+        }
+        return shells.count == 1 ? " · sh: \(cmd)" : " · \(shells.count) sh: \(cmd)"
+    }
+
+    /// Hover detail shared by the menu and the floating panel.
+    var tooltip: String {
+        var lines = [cwd, "\(termProgram) · \(tty.isEmpty ? "tty unknown" : tty)"]
+        if isBackground {
+            lines.append("background session (no terminal)")
+        }
+        lines.append(contentsOf: shells.map { "sh: \($0.prefix(300))" })
+        return lines.joined(separator: "\n")
     }
 }
