@@ -81,8 +81,8 @@ print("ok")
 PY
 
 echo "--- AskUserQuestion upgrades working to attention (blocked on an answer)"
-printf '{"session_id":"test-ask","tool_name":"AskUserQuestion","tool_input":{}}' | bash "$HOOK" working
-printf '{"session_id":"test-bash","tool_name":"Bash","tool_input":{"command":"ls"}}' | bash "$HOOK" working
+printf '{"session_id":"test-ask","hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{}}' | bash "$HOOK" working
+printf '{"session_id":"test-bash","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' | bash "$HOOK" working
 python3 - <<'PY'
 import json, os
 base = os.path.expanduser("~/.claude/status-light/sessions/")
@@ -90,6 +90,16 @@ ask = json.load(open(base + "test-ask.json"))
 bash = json.load(open(base + "test-bash.json"))
 assert ask["state"] == "attention", ask
 assert bash["state"] == "working", bash
+print("ok")
+PY
+
+echo "--- answering AskUserQuestion (PostToolUse) returns to working, not red"
+printf '{"session_id":"test-answered","hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{}}' | bash "$HOOK" working
+printf '{"session_id":"test-answered","hook_event_name":"PostToolUse","tool_name":"AskUserQuestion","tool_input":{}}' | bash "$HOOK" working
+python3 - <<'PY'
+import json, os
+data = json.load(open(os.path.expanduser("~/.claude/status-light/sessions/test-answered.json")))
+assert data["state"] == "working", data
 print("ok")
 PY
 

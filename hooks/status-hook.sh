@@ -47,8 +47,10 @@ fi
 
 # AskUserQuestion never triggers a permission prompt, so no Notification
 # fires while it waits — without this, the light would sit on yellow even
-# though Claude is blocked on an answer. PostToolUse flips it back to working.
-if [ "$STATE" = "working" ]; then
+# though Claude is blocked on an answer. Only the PreToolUse event may
+# upgrade: PostToolUse carries the same tool_name but means the question
+# was just answered, and must land as working.
+if [ "$STATE" = "working" ] && [ "$(extract hook_event_name)" = "PreToolUse" ]; then
     case "$(extract tool_name)" in
         AskUserQuestion) STATE="attention" ;;
     esac
