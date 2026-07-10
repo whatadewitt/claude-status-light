@@ -51,6 +51,15 @@ When multiple sessions are active, the single light shows the most urgent state:
 red (blocked on you) ▸ green (done, wants a task) ▸ yellow (busy). That last
 ranking is a setting you can flip.
 
+## Idle nudge
+
+Optionally, get a notification when a session has been waiting on **you** — green
+(done, wants a task) or red (blocked on a permission prompt) — for a few minutes,
+so a finished turn doesn't sit idle while its prompt cache goes cold. Enable it
+under **Settings ▸ Behavior** and pick the delay (default 4 min); it's **off by
+default**. The banner names the project, and clicking it jumps to that session's
+terminal. One nudge per idle stretch; it re-arms once the session goes busy again.
+
 ## How it works
 
 ```
