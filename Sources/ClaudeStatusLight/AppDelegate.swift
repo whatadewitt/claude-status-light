@@ -1,6 +1,7 @@
 import AppKit
+import UserNotifications
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private let store = StateStore()
     private let statusBar = StatusBarController()
     private let floating = FloatingPanelController()
@@ -17,7 +18,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentState: LightState = .off
     private let dockBackground = NSColor(calibratedWhite: 0.13, alpha: 1)
 
+    /// When each waiting session's current "ball is in your court" episode began,
+    /// and which sessions we've already nudged for that episode.
+    private var nudgeSince: [String: Date] = [:]
+    private var nudged: Set<String> = []
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Notifier.isAvailable {
+            UNUserNotificationCenter.current().delegate = self
+            Notifier.requestAuthorization()
+        }
+
         floating.onFocus = { TerminalFocuser.focus($0) }
         floating.onRequestMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         settingsWindow.onRevealIcon = { [weak self] in self?.revealIconFolder() }
@@ -41,6 +52,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? { makeMenu() }
+
+    // MARK: - Notifications
+
+    /// Show the nudge as a banner even though we're an accessory (menu-bar) app.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    /// Clicking a nudge focuses the terminal it was about.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        let term = info["termProgram"] as? String ?? ""
+        let tty = info["tty"] as? String ?? ""
+        if !term.isEmpty || !tty.isEmpty {
+            DispatchQueue.main.async { TerminalFocuser.focus(termProgram: term, tty: tty) }
+        }
+        completionHandler()
+    }
 
     // MARK: - Settings
 
@@ -76,7 +109,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             floating.update(state: state, sessions: sessions)
         }
         updateDance(anyWorking: sessions.contains { $0.state == .working })
+        updateIdleNudges(sessions)
         applyIcons()
+    }
+
+    // MARK: - Idle nudge
+
+    /// Fire a one-shot notification once an interactive session has sat waiting
+    /// on the user (green "awaiting task" or red "waiting for input") for the
+    /// configured time — a heads-up to reply before the ~5-minute prompt cache
+    /// expires. The clock is tracked here rather than from the session file's
+    /// `updated_at` because Claude Code's ~60s idle reminder rewrites that
+    /// timestamp without making an API call (so it doesn't refresh the cache).
+    private func updateIdleNudges(_ sessions: [SessionState]) {
+        let settings = Settings.shared
+        let now = Date()
+        let threshold = settings.idleNudgeMinutes * 60
+        var waitingIDs = Set<String>()
+
+        for session in sessions {
+            let waiting = (session.state == .idle || session.state == .attention)
+                && !session.isBackground
+            guard settings.idleNudgeEnabled, waiting else { continue }
+            waitingIDs.insert(session.sessionID)
+
+            // Anchor the episode at whichever is earlier: when we first saw it
+            // waiting, or its last hook write (so a mid-episode app launch still
+            // counts time already elapsed).
+            let start = nudgeSince[session.sessionID] ?? min(now, session.updatedAt)
+            nudgeSince[session.sessionID] = start
+
+            if !nudged.contains(session.sessionID),
+               now.timeIntervalSince(start) >= threshold {
+                nudged.insert(session.sessionID)
+                Notifier.nudge(session: session, minutes: settings.idleNudgeMinutes)
+            }
+        }
+
+        // Sessions that went back to work, ended, or turned background re-arm.
+        for id in nudgeSince.keys where !waitingIDs.contains(id) {
+            nudgeSince.removeValue(forKey: id)
+            nudged.remove(id)
+        }
     }
 
     // MARK: - Dance

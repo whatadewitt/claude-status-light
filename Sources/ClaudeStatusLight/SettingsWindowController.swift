@@ -60,6 +60,31 @@ final class SettingsWindowController: NSObject {
             Settings.shared.greenBeatsYellow = $0
         })
 
+        let nudgeRow = NSStackView()
+        nudgeRow.orientation = .horizontal
+        nudgeRow.spacing = 8
+        nudgeRow.addArrangedSubview(checkbox("Nudge me before the context cache expires, after", settings.idleNudgeEnabled) {
+            Settings.shared.idleNudgeEnabled = $0
+        })
+        let nudgeMinutes: [Double] = [2, 3, 3.5, 4, 4.5]
+        let selectedMinute = nudgeMinutes.firstIndex(of: settings.idleNudgeMinutes) ?? 3
+        let nudgePicker = Picker(
+            titles: nudgeMinutes.map { $0 == floor($0) ? "\(Int($0)) min" : "\($0) min" },
+            selected: selectedMinute
+        ) { Settings.shared.idleNudgeMinutes = nudgeMinutes[$0] }
+        pickers.append(nudgePicker)
+        nudgeRow.addArrangedSubview(nudgePicker.popup)
+        stack.addArrangedSubview(nudgeRow)
+
+        let nudgeHint = NSTextField(wrappingLabelWithString:
+            "Notifies you when an interactive session has been waiting on you "
+            + "(green or red) that long, so you can reply before the ~5-minute "
+            + "prompt cache goes cold. One nudge per idle stretch.")
+        nudgeHint.font = .systemFont(ofSize: 11)
+        nudgeHint.textColor = .secondaryLabelColor
+        nudgeHint.preferredMaxLayoutWidth = 340
+        stack.addArrangedSubview(nudgeHint)
+
         stack.addArrangedSubview(separator())
         stack.addArrangedSubview(sectionLabel("Icon"))
         let hint = NSTextField(wrappingLabelWithString:

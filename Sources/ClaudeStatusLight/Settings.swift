@@ -33,6 +33,8 @@ final class Settings {
         static let lockCorner = "lockToCorner"
         static let corner = "floatingCorner"
         static let greenBeatsYellow = "greenBeatsYellow"
+        static let idleNudge = "idleNudgeEnabled"
+        static let idleNudgeMinutes = "idleNudgeMinutes"
         static let floatingX = "floatingOriginX"
         static let floatingY = "floatingOriginY"
     }
@@ -45,6 +47,8 @@ final class Settings {
             Key.lockCorner: true,
             Key.corner: ScreenCorner.topRight.rawValue,
             Key.greenBeatsYellow: true,
+            Key.idleNudge: false,
+            Key.idleNudgeMinutes: 4.0,
         ])
     }
 
@@ -72,6 +76,23 @@ final class Settings {
     var greenBeatsYellow: Bool {
         get { defaults.bool(forKey: Key.greenBeatsYellow) }
         set { store(newValue, Key.greenBeatsYellow) }
+    }
+
+    /// Nudge you with a notification once a session has sat waiting on you for
+    /// `idleNudgeMinutes`, so you can reply before the ~5-minute prompt cache
+    /// (its TTL runs from Claude's last API call) goes cold.
+    var idleNudgeEnabled: Bool {
+        get { defaults.bool(forKey: Key.idleNudge) }
+        set { store(newValue, Key.idleNudge) }
+    }
+    /// How long a session may sit waiting before the nudge fires. Kept just
+    /// under the 5-minute cache TTL; clamped so it can never exceed it.
+    var idleNudgeMinutes: Double {
+        get {
+            let v = defaults.double(forKey: Key.idleNudgeMinutes)
+            return v > 0 ? v : 4
+        }
+        set { store(min(4.75, max(0.5, newValue)), Key.idleNudgeMinutes) }
     }
     var corner: ScreenCorner {
         get { ScreenCorner(rawValue: defaults.integer(forKey: Key.corner)) ?? .topRight }

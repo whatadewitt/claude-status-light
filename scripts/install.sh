@@ -94,6 +94,16 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+echo "==> Signing the app bundle (ad-hoc)"
+# macOS only registers an app with Notification Center if the whole bundle is
+# code-signed (Info.plist bound, resources sealed). Swift's linker-signed
+# binary alone leaves the bundle unsigned, so the notification-permission
+# prompt never appears and nudges silently fall back to a non-clickable banner.
+# Ad-hoc signing (--sign -) needs no certificate. Sign last, once all bundle
+# contents (binary, icon, Info.plist) are in place.
+codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1 \
+    || echo "    codesign unavailable; nudges will use a non-clickable fallback banner."
+
 echo "==> Installing hook and wiring ~/.claude/settings.json"
 mkdir -p "$INSTALL_DIR/sessions"
 install -m 0755 "$REPO_ROOT/hooks/status-hook.sh" "$HOOK_DEST"
