@@ -53,9 +53,17 @@ struct SessionState {
     /// Commands of Bash tool shells still running under this session's pid.
     let shells: [String]
 
+    /// Where this session lives: nil = this Mac, else a publisher's host
+    /// label or "cloud". Remote sessions can't be PID-checked or focused.
+    var origin: String? = nil
+
+    /// Remote sessions carry the publisher's background verdict — their
+    /// recorded pid/tty are meaningless on this machine.
+    var backgroundOverride: Bool? = nil
+
     /// Headless sessions (daemon-spawned, background tasks): a known owning
     /// process but no controlling terminal.
-    var isBackground: Bool { pid != nil && tty.isEmpty }
+    var isBackground: Bool { backgroundOverride ?? (pid != nil && tty.isEmpty) }
 
     /// Claude Code parks finished background agents instead of exiting them —
     /// alive "awaiting next task" but doing nothing. Quiet headless idle rows
@@ -76,12 +84,19 @@ struct SessionState {
     /// working on when the transcript has a title; otherwise it keeps the
     /// bare "(bg)" marker (e.g. pre-warmed spares with no transcript).
     var displayName: String {
-        guard isBackground else { return project }
-        guard var title, !title.isEmpty else { return "\(project) (bg)" }
-        if title.count > 48 {
-            title = title.prefix(47) + "…"
+        let base: String
+        if !isBackground {
+            base = project
+        } else if var title, !title.isEmpty {
+            if title.count > 48 {
+                title = title.prefix(47) + "…"
+            }
+            base = "\(project) · \(title)"
+        } else {
+            base = "\(project) (bg)"
         }
-        return "\(project) · \(title)"
+        guard let origin else { return base }
+        return "\(origin) · \(base)"
     }
 
     /// " · N agent(s)" when subagents are running, empty otherwise.
@@ -105,7 +120,9 @@ struct SessionState {
     /// Hover detail shared by the menu and the floating panel.
     var tooltip: String {
         var lines = [cwd, "\(termProgram) · \(tty.isEmpty ? "tty unknown" : tty)"]
-        if isParked {
+        if let origin {
+            lines.append("remote session on \(origin)")
+        } else if isParked {
             let minutes = Int(Date().timeIntervalSince(updatedAt) / 60)
             lines.append("parked — idle \(minutes)m, process alive")
         } else if isBackground {

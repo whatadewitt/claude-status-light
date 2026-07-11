@@ -93,4 +93,54 @@ struct SessionLabelTests {
         #expect(session(state: .working, age: 3 * 60).isParked == false)          // busy
         #expect(session(tty: "/dev/ttys000", age: 60 * 60).isParked == false)     // interactive
     }
+
+    // MARK: - Remote sessions
+
+    private func remoteSession(
+        origin: String? = "office-mini",
+        state: LightState = .working,
+        cwd: String = "/Users/luke/mlb-props",
+        title: String? = nil,
+        background: Bool? = true,
+        age: TimeInterval = 0
+    ) -> SessionState {
+        SessionState(
+            sessionID: "r1", state: state, cwd: cwd, termProgram: "remote",
+            tty: "", pid: nil, updatedAt: Date().addingTimeInterval(-age),
+            agents: 0, title: title, shells: [],
+            origin: origin, backgroundOverride: background
+        )
+    }
+
+    @Test func originPrefixesDisplayName() {
+        #expect(remoteSession(title: "Improve win rate").displayName
+            == "office-mini · mlb-props · Improve win rate")
+        #expect(remoteSession(origin: "cloud", cwd: "my-repo", background: true).displayName
+            == "cloud · my-repo (bg)")
+    }
+
+    @Test func localSessionsAreUnchanged() {
+        let local = SessionState(
+            sessionID: "l1", state: .idle, cwd: "/tmp/proj", termProgram: "iTerm.app",
+            tty: "/dev/ttys001", pid: 1, updatedAt: Date(), agents: 0, title: nil, shells: []
+        )
+        #expect(local.origin == nil)
+        #expect(local.displayName == "proj")
+        #expect(local.isBackground == false)
+    }
+
+    @Test func backgroundOverrideBeatsPidHeuristic() {
+        // Remote sessions have no meaningful pid; the publisher's verdict wins.
+        #expect(remoteSession(background: true).isBackground == true)
+        #expect(remoteSession(background: false).isBackground == false)
+    }
+
+    @Test func remoteBackgroundSessionsCanPark() {
+        #expect(remoteSession(state: .idle, background: true, age: 3 * 60).isParked == true)
+        #expect(remoteSession(state: .idle, background: false, age: 3 * 60).isParked == false)
+    }
+
+    @Test func tooltipNamesTheOrigin() {
+        #expect(remoteSession().tooltip.contains("remote session on office-mini"))
+    }
 }
