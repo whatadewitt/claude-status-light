@@ -57,7 +57,9 @@ enum Publisher {
             ok = (response as? HTTPURLResponse)?.statusCode == 200
             done.signal()
         }.resume()
-        _ = done.wait(timeout: .now() + 15)
-        return ok
+        // Only trust `ok` after a successful wait: a timed-out wait can race
+        // with a late write from the completion handler, so treat it as false.
+        let result = done.wait(timeout: .now() + 15)
+        return result == .success && ok
     }
 }
