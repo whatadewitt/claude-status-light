@@ -25,10 +25,21 @@ export class RelayDO extends DurableObject<Env> {
     const now = Math.floor(Date.now() / 1000);
 
     if (request.method === "POST" && url.pathname.startsWith("/hosts/")) {
-      const name = decodeURIComponent(url.pathname.slice("/hosts/".length));
+      let name: string;
+      try {
+        name = decodeURIComponent(url.pathname.slice("/hosts/".length));
+      } catch {
+        return new Response("invalid host name", { status: 400 });
+      }
       if (!name) return new Response("missing host name", { status: 400 });
-      const body = (await request.json().catch(() => ({}))) as { sessions?: unknown[] };
-      const record: HostRecord = { name, received_at: now, sessions: body.sessions ?? [] };
+      // A malformed or shapeless body must never replace a good snapshot,
+      // so reject anything whose sessions isn't an array (clear-all is an
+      // explicit empty array, never a parse failure).
+      const body = (await request.json().catch(() => null)) as { sessions?: unknown } | null;
+      if (body === null || !Array.isArray(body.sessions)) {
+        return new Response("invalid body", { status: 400 });
+      }
+      const record: HostRecord = { name, received_at: now, sessions: body.sessions };
       await this.ctx.storage.put(`host:${name}`, record);
       return Response.json({ ok: true });
     }

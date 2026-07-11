@@ -72,6 +72,29 @@ describe("host snapshots", () => {
     const res = await post(relay(), "/hosts/", { sessions: [] });
     expect(res.status).toBe(400);
   });
+
+  it("rejects malformed JSON and leaves the prior snapshot untouched", async () => {
+    const stub = relay();
+    await post(stub, "/hosts/office-mini", { sessions: [wireSession] });
+    const res = await stub.fetch("https://relay/hosts/office-mini", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{not json",
+    });
+    expect(res.status).toBe(400);
+    const body = await sessions(stub);
+    expect(body.hosts[0].sessions).toEqual([wireSession]);
+  });
+
+  it("rejects a body whose sessions is not an array", async () => {
+    const res = await post(relay(), "/hosts/office-mini", { sessions: "nope" });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a host name with malformed percent-escapes", async () => {
+    const res = await post(relay(), "/hosts/bad%zz", { sessions: [] });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("cloud hook ingestion", () => {
