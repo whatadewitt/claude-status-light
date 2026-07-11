@@ -13,6 +13,24 @@ describe("auth", () => {
     expect((await exports.default.fetch(request("/sessions", {}, "wrong"))).status).toBe(401);
   });
 
+  it("rejects the correct token without the Bearer scheme", async () => {
+    const res = await exports.default.fetch(
+      new Request("https://relay.example/sessions", {
+        headers: { Authorization: "test-token" },
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects Bearer followed by only whitespace", async () => {
+    const res = await exports.default.fetch(
+      new Request("https://relay.example/sessions", {
+        headers: { Authorization: "Bearer   " },
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
   it("accepts the configured token", async () => {
     const res = await exports.default.fetch(request("/sessions", {}, "test-token"));
     expect(res.status).toBe(200);

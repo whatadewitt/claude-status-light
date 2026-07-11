@@ -4,14 +4,15 @@ export { RelayDO } from "./relay-do";
 /// constant-time compare. Direct string comparison leaks via timing.
 async function authorized(request: Request, env: Env): Promise<boolean> {
   const header = request.headers.get("Authorization") ?? "";
-  const provided = header.replace(/^Bearer\s+/i, "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  const provided = match?.[1] ?? "";
   if (!provided || !env.RELAY_TOKEN) return false;
   const encoder = new TextEncoder();
   const [a, b] = await Promise.all([
     crypto.subtle.digest("SHA-256", encoder.encode(provided)),
     crypto.subtle.digest("SHA-256", encoder.encode(env.RELAY_TOKEN)),
   ]);
-  return (crypto.subtle as any).timingSafeEqual(a, b);
+  return crypto.subtle.timingSafeEqual(a, b);
 }
 
 export default {
