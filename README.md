@@ -107,6 +107,47 @@ is upgraded to 🔴 — Claude is blocked on your answer, but no permission
 notification ever fires for it. Subagent starts and stops maintain one marker
 file each next to the session's JSON; the app counts them for the badge.
 
+## Remote sessions
+
+Sessions running on **other Macs** and in **Claude Code cloud sandboxes**
+(claude.ai/code, desktop-app cloud sessions) can show up in the same light.
+Remote rows are labeled with their origin (`office-mini · mlb-props`,
+`cloud · web-app`), count toward the aggregate light like any local session,
+and aren't clickable — there's no terminal on this machine to focus.
+
+```
+other Macs:  hooks → files → claude-status-light --publish ─┐
+cloud repos: .claude/status-relay.sh ── raw hook events ────┼──▶ Worker + DO ──▶ app (GET /sessions, 4s)
+this Mac:    hooks → files ─────────────────────────────────┘         (your Cloudflare account)
+```
+
+Everything meets at a tiny relay Worker (in `relay/`) deployed to your own
+Cloudflare account. Setup, one leg at a time:
+
+- **Main Mac (the one showing the light):** `scripts/deploy-relay.sh` — deploys
+  the Worker (wrangler opens a Cloudflare login on first use), generates a
+  bearer token, and writes `~/.claude/status-light/relay.json`. Restart the app
+  and it starts polling.
+- **Each remote Mac:** copy `relay.json` over (edit `"host"` to a label you'll
+  recognize), then run `scripts/install-publisher.sh` there. It builds the same
+  binary and registers a launchd agent that runs `claude-status-light --publish`,
+  mirroring that Mac's local session files to the relay.
+- **Cloud sessions, per repo:** `scripts/enable-cloud-hooks.sh <repo>` commits
+  `.claude/status-relay.sh` and its hook entries into that repo (user-level
+  settings never sync to cloud sandboxes). Then set `STATUS_LIGHT_RELAY_URL`
+  and `STATUS_LIGHT_RELAY_TOKEN` env vars in the repo's Claude Code cloud
+  environment config and allowlist the Worker's domain. The hook is inert
+  everywhere except a cloud sandbox and carries no secrets.
+
+Liveness: a host's rows drop ~60 s after its publisher goes quiet; cloud rows
+fade 30 min after their last event. If the app can't reach the relay at all,
+the menu shows a `relay unreachable` footer — so an empty list still tells you
+whether it's "no remote work" or "no signal".
+
+Privacy: the relay runs in your own Cloudflare account, behind a bearer token
+only your machines hold. It carries session states, working-directory names,
+and task titles — never code, prompts, or transcripts.
+
 ## Install
 
 Requires macOS with Xcode or the Command Line Tools (`xcode-select --install`).
@@ -147,6 +188,7 @@ Sources/ClaudeStatusLight/
   AppDelegate.swift               ties the surfaces together; polls + watches state
   Model.swift                     LightState + SessionState
   StateStore.swift                reads/aggregates per-session state files
+  ShellScanner.swift              finds Claude-spawned background shells
   Settings.swift                  UserDefaults-backed preferences
   StatusBarController.swift       menu bar item
   FloatingPanelController.swift   always-on-top desktop window
@@ -154,8 +196,17 @@ Sources/ClaudeStatusLight/
   IconRenderer.swift              spark/mascot icon + .icns generation
   TerminalFocuser.swift           click-a-session → focus its terminal
   Controls.swift                  small AppKit target/action helpers
+  RelayConfig.swift               reads ~/.claude/status-light/relay.json
+  RemoteWire.swift                relay wire format + SessionState conversions
+  RemoteStore.swift               polls the relay, merges remote sessions
+  Publisher.swift                 --publish mode: mirrors local state upward
+relay/                            Cloudflare Worker + Durable Object relay
 hooks/status-hook.sh              records per-session state (no jq required)
+hooks/status-relay.sh             cloud-sandbox hook: POSTs events to the relay
 scripts/install.sh                build + bundle .app + login item + wire up
 scripts/uninstall.sh              tear down
 scripts/merge_settings.py         idempotent settings.json hook editor
+scripts/deploy-relay.sh           deploy the relay Worker, write relay.json
+scripts/install-publisher.sh      set up a remote Mac to publish sessions
+scripts/enable-cloud-hooks.sh     commit the relay hook into a repo for cloud
 ```

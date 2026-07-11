@@ -7,3 +7,17 @@
   a top corner clear of the dancing legs, or drop the numeral at small
   sizes and render just a solid dot — keeping the count only at dock
   size and in the menu/panel rows.
+
+## Remote sessions — future work
+
+- **Tailscale Funnel relay alternative.** For users who'd rather not use
+  Cloudflare: serve the same API from a tiny local server exposed via
+  Tailscale Funnel / plain tailnet.
+- **WebSocket push from the DO.** Replace the app's 4 s polling with a
+  Durable Object WebSocket so remote state changes land instantly.
+- **"SSH to session" for remote host rows.** Clicking a remote Mac's row
+  could open `ssh <host>` in a terminal instead of doing nothing.
+- **Linux publisher.** The publisher loop is AppKit-free; port it so Linux
+  boxes can report their sessions too.
+- **Setting to exclude remote sessions from the aggregate light** — keep
+  the rows but let the light reflect only this machine.
