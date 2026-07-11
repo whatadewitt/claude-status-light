@@ -2,6 +2,7 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = StateStore()
+    private let remote = RemoteStore(config: RelayConfig.load())
     private let statusBar = StatusBarController()
     private let floating = FloatingPanelController()
     private let settingsWindow = SettingsWindowController()
@@ -18,7 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dockBackground = NSColor(calibratedWhite: 0.13, alpha: 1)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        floating.onFocus = { TerminalFocuser.focus($0) }
+        floating.onFocus = { session in
+            guard session.origin == nil else { return }  // nothing to focus locally
+            TerminalFocuser.focus(session)
+        }
+        remote.start()
         floating.onRequestMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         settingsWindow.onRevealIcon = { [weak self] in self?.revealIconFolder() }
 
@@ -66,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Refresh
 
     @objc private func refresh() {
-        let sessions = store.activeSessions()
+        let sessions = RemoteStore.merge(local: store.activeSessions(), remote: remote.sessions())
         let state = store.aggregate(sessions, greenBeatsYellow: Settings.shared.greenBeatsYellow)
         currentSessions = sessions
         currentState = state
@@ -151,14 +156,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !currentSessions.isEmpty {
             menu.addItem(.separator())
-            let hint = NSMenuItem(title: "Click a session to open its terminal", action: nil, keyEquivalent: "")
-            hint.isEnabled = false
-            menu.addItem(hint)
+            if currentSessions.contains(where: { $0.origin == nil }) {
+                let hint = NSMenuItem(title: "Click a session to open its terminal", action: nil, keyEquivalent: "")
+                hint.isEnabled = false
+                menu.addItem(hint)
+            }
             for session in currentSessions {
-                let item = NSMenuItem(
-                    title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)",
-                    action: #selector(ClosureInvoker.fire), keyEquivalent: ""
-                )
+                let title = "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)"
+                let item: NSMenuItem
+                if session.origin == nil {
+                    item = NSMenuItem(title: title, action: #selector(ClosureInvoker.fire), keyEquivalent: "")
+                    let invoker = ClosureInvoker { TerminalFocuser.focus(session) }
+                    item.target = invoker
+                    item.representedObject = invoker // retain
+                } else {
+                    // Remote session — no terminal on this machine to focus.
+                    item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                }
                 if session.isParked {
                     item.attributedTitle = NSAttributedString(
                         string: item.title,
@@ -167,12 +181,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             .font: NSFont.menuFont(ofSize: 0),
                         ])
                 }
-                let invoker = ClosureInvoker { TerminalFocuser.focus(session) }
-                item.target = invoker
-                item.representedObject = invoker // retain
                 item.toolTip = session.tooltip
                 menu.addItem(item)
             }
+        }
+
+        // Absence of remote rows must be distinguishable from a dead relay.
+        if remote.isConfigured && remote.unreachable {
+            menu.addItem(.separator())
+            let item = NSMenuItem(title: "relay unreachable", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
         }
 
         menu.addItem(.separator())
