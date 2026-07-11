@@ -104,17 +104,19 @@ struct SessionState {
         agents > 0 ? " · \(agents) agent\(agents == 1 ? "" : "s")" : ""
     }
 
-    /// What Claude-spawned shell work is still running: the first command
-    /// (truncated), with a count when there are several. Full commands are
-    /// in the tooltip. Titled agent rows suppress this — the title already
-    /// says what the agent is doing; its shells still turn the row yellow.
+    /// What Claude-spawned shell work is still running: the command
+    /// (truncated) for a single shell, just a count for several. Full
+    /// commands are in the tooltip. Titled agent rows suppress this — the
+    /// title already says what the agent is doing; its shells still turn
+    /// the row yellow.
     var shellsSuffix: String {
         if isBackground && !(title ?? "").isEmpty { return "" }
         guard var cmd = shells.first else { return "" }
+        if shells.count > 1 { return " · running \(shells.count) shells…" }
         if cmd.count > 40 {
             cmd = cmd.prefix(39) + "…"
         }
-        return shells.count == 1 ? " · sh: \(cmd)" : " · \(shells.count) sh: \(cmd)"
+        return " · sh: \(cmd)"
     }
 
     /// Hover detail shared by the menu and the floating panel.

@@ -57,7 +57,9 @@ struct SessionLabelTests {
         #expect(session(shells: [long]).shellsSuffix
                 == " · sh: " + String(repeating: "x", count: 39) + "…")
         #expect(session(shells: ["first command", "second"]).shellsSuffix
-                == " · 2 sh: first command")
+                == " · running 2 shells…")
+        #expect(session(shells: ["a", "b", "c"]).shellsSuffix
+                == " · running 3 shells…")
     }
 
     @Test func titledAgentRowSuppressesShellDetail() {
