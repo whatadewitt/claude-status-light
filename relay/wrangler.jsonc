@@ -1,0 +1,11 @@
+{
+  "name": "claude-status-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "RELAY", "class_name": "RelayDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayDO"] }]
+}

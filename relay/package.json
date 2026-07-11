@@ -1,0 +1,19 @@
+{
+  "name": "claude-status-relay",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "types": "wrangler types",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.0.0"
+  },
+  "overrides": {
+    "vite": "^7.0.0"
+  }
+}
