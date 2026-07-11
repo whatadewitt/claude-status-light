@@ -29,8 +29,13 @@ final class RemoteStore {
     /// window — distinguishes "no remote sessions" from "can't see remote".
     var unreachable: Bool {
         guard isConfigured, lastAttempt != nil else { return false }
-        guard let lastSuccess else { return true }
-        return Date().timeIntervalSince(lastSuccess) > Self.cacheValidFor
+        return !cacheIsFresh
+    }
+
+    /// The last successful snapshot is still recent enough to trust.
+    private var cacheIsFresh: Bool {
+        guard let lastSuccess else { return false }
+        return Date().timeIntervalSince(lastSuccess) <= Self.cacheValidFor
     }
 
     init(config: RelayConfig?, urlSession: URLSession = .shared) {
@@ -38,21 +43,36 @@ final class RemoteStore {
         self.urlSession = urlSession
     }
 
+    deinit {
+        timer?.invalidate()
+    }
+
     func start() {
         guard let config else { return }
-        let timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
+        // .common mode so polling keeps firing while an NSMenu is open —
+        // menu tracking switches the main run loop out of .default, which
+        // would otherwise pause polls exactly when the user is looking.
+        let timer = Timer(timeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
             self?.poll(config: config)
         }
         timer.tolerance = 1
+        RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         poll(config: config)
     }
 
     func sessions() -> [SessionState] {
-        guard let latest, let lastSuccess,
-              Date().timeIntervalSince(lastSuccess) <= Self.cacheValidFor
-        else { return [] }
+        guard let latest, cacheIsFresh else { return [] }
         return Self.sessions(from: latest)
+    }
+
+    /// Adopt a freshly fetched snapshot (main thread only). Ignores snapshots
+    /// older than the one we hold — a slow response from an earlier poll must
+    /// not overwrite newer data or bump the cache clock.
+    func ingest(_ snapshot: WireSnapshot) {
+        if let current = latest, snapshot.now < current.now { return }
+        latest = snapshot
+        lastSuccess = Date()
     }
 
     /// Pure: wire snapshot → display sessions, staleness on the relay clock.
@@ -86,8 +106,7 @@ final class RemoteStore {
                 let snapshot = try? JSONDecoder().decode(WireSnapshot.self, from: data)
             else { return }  // failure: cache ages out on its own
             DispatchQueue.main.async {
-                self?.latest = snapshot
-                self?.lastSuccess = Date()
+                self?.ingest(snapshot)
             }
         }.resume()
     }

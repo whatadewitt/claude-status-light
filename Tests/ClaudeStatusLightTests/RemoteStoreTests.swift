@@ -63,6 +63,22 @@ struct RemoteStoreTests {
         #expect(store.sessions().isEmpty)
     }
 
+    @Test func staleResponseCannotOverwriteNewerSnapshot() {
+        // A slow poll response arriving after a newer one must be ignored.
+        let store = RemoteStore(config: nil)
+        let newer = snapshot(
+            now: 10_000,
+            hosts: [WireHost(name: "mini", receivedAt: 9_990, sessions: [wire(id: "keep")])]
+        )
+        let older = snapshot(
+            now: 9_000,
+            hosts: [WireHost(name: "mini", receivedAt: 8_990, sessions: [wire(id: "late")])]
+        )
+        store.ingest(newer)
+        store.ingest(older)
+        #expect(store.sessions().map(\.sessionID) == ["keep"])
+    }
+
     @Test func relayConfigLoads() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("relay-config-\(UUID().uuidString)")
