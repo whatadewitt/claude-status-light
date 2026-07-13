@@ -10,9 +10,12 @@
 
 ## Remote sessions — future work
 
-- **API-token fallback for in-app deploy.** The Settings deploy rides
-  wrangler's public OAuth client ID; if Cloudflare revokes it, add a flow
-  that opens the dashboard's create-token page and accepts a pasted token.
+- **API-token flow for in-app deploy.** The Settings deploy rides
+  wrangler's public OAuth client ID, so the consent page says "Wrangler"
+  instead of this app's name — confusing, and it breaks if Cloudflare ever
+  revokes the ID. Add a flow that opens the dashboard's create-token page
+  (pre-filled permissions) and accepts a pasted token; consider making it
+  the default and keeping OAuth as the shortcut.
 - **Tailscale Funnel relay alternative.** For users who'd rather not use
   Cloudflare: serve the same API from a tiny local server exposed via
   Tailscale Funnel / plain tailnet.
