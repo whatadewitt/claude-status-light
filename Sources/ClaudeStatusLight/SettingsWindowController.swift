@@ -307,6 +307,13 @@ final class DeployProgressSheet {
     }
 
     private func dismiss() {
+        // Unblock a suspended pickAccount first: its non-throwing
+        // continuation can't be resumed by Task.cancel(), and a leaked
+        // suspension would keep deployTask alive forever. The resumed
+        // (already cancelled) deploy fails at its next network call —
+        // harmlessly, into the generic catch of a dismissed sheet.
+        indexChoice?.resume(returning: 0)
+        indexChoice = nil
         onCancel?()
         window.sheetParent?.endSheet(window)
     }
