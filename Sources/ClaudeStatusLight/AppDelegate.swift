@@ -2,7 +2,7 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = StateStore()
-    private let remote = RemoteStore(config: RelayConfig.load())
+    private var remote = RemoteStore(config: RelayConfig.load())
     private let statusBar = StatusBarController()
     private let floating = FloatingPanelController()
     private let settingsWindow = SettingsWindowController()
@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         remote.start()
         floating.onRequestMenu = { [weak self] in self?.makeMenu() ?? NSMenu() }
         settingsWindow.onRevealIcon = { [weak self] in self?.revealIconFolder() }
+        settingsWindow.onRelayChanged = { [weak self] in self?.reloadRelay() }
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(applySettings),
@@ -65,6 +66,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !settings.showDockIcon {
             NSApp.applicationIconImage = nil
         }
+        refresh()
+    }
+
+    /// Swap in a store for the freshly written relay.json and poll now —
+    /// a Settings deploy takes effect without relaunching.
+    private func reloadRelay() {
+        remote.stop()
+        remote = RemoteStore(config: RelayConfig.load())
+        remote.start()
         refresh()
     }
 

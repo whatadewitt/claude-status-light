@@ -61,6 +61,13 @@ final class RemoteStore {
         poll(config: config)
     }
 
+    /// Invalidate the poll timer so a replacement store can take over
+    /// (Settings re-deploy). Safe to call repeatedly or before start().
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
     func sessions() -> [SessionState] {
         guard let latest, cacheIsFresh else { return [] }
         return Self.sessions(from: latest)

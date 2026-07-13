@@ -9,6 +9,11 @@ final class SettingsWindowController: NSObject {
 
     /// Invoked when the "Reveal icon folder…" button is pressed.
     var onRevealIcon: (() -> Void)?
+    /// Invoked after a successful deploy so the app reloads relay polling.
+    var onRelayChanged: (() -> Void)?
+    private var relayStatus: NSTextField?
+    private var relayButton: NSButton?
+    private var deployTask: Task<Void, Never>?
 
     func show() {
         if window == nil { build() }
@@ -78,6 +83,24 @@ final class SettingsWindowController: NSObject {
         invokers.append(invoker)
         stack.addArrangedSubview(reveal)
 
+        stack.addArrangedSubview(separator())
+        stack.addArrangedSubview(sectionLabel("Remote sessions"))
+        let relayConfig = RelayConfig.load()
+        let status = NSTextField(labelWithString: Self.relayStatusText(config: relayConfig))
+        status.font = .systemFont(ofSize: 11)
+        status.textColor = .secondaryLabelColor
+        relayStatus = status
+        stack.addArrangedSubview(status)
+
+        let deploy = NSButton(title: Self.relayButtonTitle(config: relayConfig), target: nil, action: nil)
+        deploy.bezelStyle = .rounded
+        let deployInvoker = ClosureInvoker { [weak self] in self?.runDeploy() }
+        deploy.target = deployInvoker
+        deploy.action = #selector(ClosureInvoker.fire)
+        invokers.append(deployInvoker)
+        relayButton = deploy
+        stack.addArrangedSubview(deploy)
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 320),
             styleMask: [.titled, .closable],
@@ -117,5 +140,162 @@ final class SettingsWindowController: NSObject {
         let box = NSBox()
         box.boxType = .separator
         return box
+    }
+
+    static func relayStatusText(config: RelayConfig?) -> String {
+        config.map { "relay: \($0.url.absoluteString)" } ?? "not set up"
+    }
+
+    static func relayButtonTitle(config: RelayConfig?) -> String {
+        config == nil ? "Set up Cloudflare relay…" : "Re-deploy relay…"
+    }
+
+    private func runDeploy() {
+        // AppKit target/action always fires on the main thread, but this
+        // class isn't itself @MainActor-isolated — assert what's already
+        // true so the (deliberately isolated) DeployProgressSheet can be
+        // constructed here without an `await`.
+        MainActor.assumeIsolated {
+            guard deployTask == nil, let window else { return }
+            let sheet = DeployProgressSheet()
+            window.beginSheet(sheet.window)
+            relayButton?.isEnabled = false
+
+            deployTask = Task { @MainActor [weak self] in
+                defer {
+                    self?.deployTask = nil
+                    self?.relayButton?.isEnabled = true
+                }
+                do {
+                    sheet.begin("Logging in")
+                    let token = try await CloudflareAuth().accessToken()
+                    let deployer = CloudflareDeployer { accounts in
+                        await sheet.pickAccount(from: accounts)
+                    }
+                    let config = try await deployer.deploy(accessToken: token,
+                                                           existing: RelayConfig.load()) { step in
+                        Task { @MainActor in sheet.begin(step.label) }
+                    }
+                    sheet.finish("Done — \(config.url.absoluteString)")
+                    self?.relayStatus?.stringValue = Self.relayStatusText(config: config)
+                    self?.relayButton?.title = Self.relayButtonTitle(config: config)
+                    self?.onRelayChanged?()
+                } catch {
+                    sheet.fail(error.localizedDescription)
+                }
+            }
+        }
+    }
+}
+
+/// Modal sheet that streams deploy steps: each `begin` checks off the
+/// previous line, `fail` pins the error and offers the CLI fallback.
+@MainActor
+final class DeployProgressSheet {
+    let window: NSWindow
+    private let log = NSTextField(wrappingLabelWithString: "")
+    private let close = NSButton(title: "Close", target: nil, action: nil)
+    private var lines: [String] = []
+    private var invokers: [ClosureInvoker] = []
+    private var indexChoice: CheckedContinuation<Int, Never>?
+    private let accountPopup = NSPopUpButton()
+    private let accountRow = NSStackView()
+
+    init() {
+        window = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
+        window.title = "Cloudflare relay"
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 10
+        stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        log.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        log.preferredMaxLayoutWidth = 360
+        stack.addArrangedSubview(log)
+
+        accountRow.orientation = .horizontal
+        accountRow.spacing = 8
+        accountRow.addArrangedSubview(NSTextField(labelWithString: "Account:"))
+        accountRow.addArrangedSubview(accountPopup)
+        let choose = NSButton(title: "Use this account", target: nil, action: nil)
+        choose.bezelStyle = .rounded
+        let chooseInvoker = ClosureInvoker { [weak self] in self?.confirmAccount() }
+        choose.target = chooseInvoker
+        choose.action = #selector(ClosureInvoker.fire)
+        invokers.append(chooseInvoker)
+        accountRow.addArrangedSubview(choose)
+        accountRow.isHidden = true
+        stack.addArrangedSubview(accountRow)
+
+        close.bezelStyle = .rounded
+        close.isEnabled = false
+        stack.addArrangedSubview(close)
+
+        let content = NSView()
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: content.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            content.widthAnchor.constraint(greaterThanOrEqualToConstant: 400),
+        ])
+        window.contentView = content
+        let closeInvoker = ClosureInvoker { [weak self] in self?.dismiss() }
+        close.target = closeInvoker
+        close.action = #selector(ClosureInvoker.fire)
+        invokers.append(closeInvoker)
+    }
+
+    func begin(_ step: String) {
+        if var last = lines.last, last.hasSuffix("…") {
+            last.removeLast()
+            lines[lines.count - 1] = "✓ " + last
+        }
+        lines.append(step + "…")
+        render()
+    }
+
+    func finish(_ message: String) {
+        begin(message)  // checks off the last step
+        lines[lines.count - 1] = "✓ " + message
+        close.isEnabled = true
+        render()
+    }
+
+    func fail(_ message: String) {
+        lines.append("✗ " + message)
+        lines.append("CLI alternative: scripts/deploy-relay.sh")
+        close.isEnabled = true
+        render()
+    }
+
+    func pickAccount(from accounts: [CFAccount]) async -> CFAccount {
+        accountPopup.removeAllItems()
+        accountPopup.addItems(withTitles: accounts.map { "\($0.name)" })
+        accountRow.isHidden = false
+        render()
+        let chosen = await withCheckedContinuation { (cont: CheckedContinuation<Int, Never>) in
+            indexChoice = cont
+        }
+        accountRow.isHidden = true
+        return accounts[chosen]
+    }
+
+    private func confirmAccount() {
+        indexChoice?.resume(returning: max(0, accountPopup.indexOfSelectedItem))
+        indexChoice = nil
+    }
+
+    private func dismiss() {
+        window.sheetParent?.endSheet(window)
+    }
+
+    private func render() {
+        log.stringValue = lines.joined(separator: "\n")
+        window.setContentSize(window.contentView!.fittingSize)
     }
 }
