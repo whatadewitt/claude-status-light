@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { CLOUD_TTL_S } from "../src/classify";
+import { PAIR_TTL_S } from "../src/relay-do";
 import type { RelayDO } from "../src/relay-do";
 
 function relay() {
@@ -181,5 +182,101 @@ describe("routing", () => {
   it("404s unknown paths", async () => {
     const res = await relay().fetch("https://relay/nope");
     expect(res.status).toBe(404);
+  });
+});
+
+describe("pairing codes", () => {
+  const config = { url: "https://relay.example", token: "secret-token" };
+
+  /// Backdates a stored pair record so its TTL has elapsed.
+  async function expire(stub: DurableObjectStub, code: string) {
+    await runInDurableObject(stub, async (instance: RelayDO) => {
+      const ctx = (instance as unknown as { ctx: DurableObjectState }).ctx;
+      const record = await ctx.storage.get<{ expires_at: number }>(`pair:${code}`);
+      await ctx.storage.put(`pair:${code}`, {
+        ...record!,
+        expires_at: record!.expires_at - PAIR_TTL_S - 10,
+      });
+    });
+  }
+
+  it("round-trips a config through POST /pair and GET /pair/:code", async () => {
+    const stub = relay();
+    const res = await post(stub, "/pair", config);
+    expect(res.status).toBe(200);
+    const { code, expires_at } = (await res.json()) as { code: string; expires_at: number };
+    expect(code).toMatch(/^[0-9a-f]{32}$/);
+    const drift = Math.abs(expires_at - Math.floor(Date.now() / 1000) - PAIR_TTL_S);
+    expect(drift).toBeLessThan(5);
+
+    const redeemed = await stub.fetch(`https://relay/pair/${code}`);
+    expect(redeemed.status).toBe(200);
+    expect(await redeemed.json()).toEqual(config);
+  });
+
+  it("returns the config exactly once", async () => {
+    const stub = relay();
+    const res = await post(stub, "/pair", config);
+    const { code } = (await res.json()) as { code: string };
+    expect((await stub.fetch(`https://relay/pair/${code}`)).status).toBe(200);
+    expect((await stub.fetch(`https://relay/pair/${code}`)).status).toBe(404);
+  });
+
+  it("404s an expired code and removes it from storage", async () => {
+    const stub = relay();
+    const res = await post(stub, "/pair", config);
+    const { code } = (await res.json()) as { code: string };
+    await expire(stub, code);
+    expect((await stub.fetch(`https://relay/pair/${code}`)).status).toBe(404);
+    await runInDurableObject(stub, async (instance: RelayDO) => {
+      const ctx = (instance as unknown as { ctx: DurableObjectState }).ctx;
+      expect(await ctx.storage.get(`pair:${code}`)).toBeUndefined();
+    });
+  });
+
+  it("answers unknown, expired, and used codes identically (no oracle)", async () => {
+    const stub = relay();
+    const first = (await (await post(stub, "/pair", config)).json()) as { code: string };
+    await stub.fetch(`https://relay/pair/${first.code}`); // consume it
+    const used = await stub.fetch(`https://relay/pair/${first.code}`);
+
+    const second = (await (await post(stub, "/pair", config)).json()) as { code: string };
+    await expire(stub, second.code);
+    const expired = await stub.fetch(`https://relay/pair/${second.code}`);
+
+    const unknown = await stub.fetch(`https://relay/pair/${"0".repeat(32)}`);
+
+    const all = [used, expired, unknown];
+    for (const res of all) expect(res.status).toBe(404);
+    const bodies = await Promise.all(all.map((r) => r.text()));
+    expect(new Set(bodies).size).toBe(1);
+  });
+
+  it("rejects bodies missing url or token", async () => {
+    const stub = relay();
+    expect((await post(stub, "/pair", {})).status).toBe(400);
+    expect((await post(stub, "/pair", { url: "https://x" })).status).toBe(400);
+    expect((await post(stub, "/pair", { url: "", token: "t" })).status).toBe(400);
+    expect((await post(stub, "/pair", { url: "https://x", token: "" })).status).toBe(400);
+  });
+
+  it("never leaks pairing state into /sessions", async () => {
+    const stub = relay();
+    await post(stub, "/pair", config);
+    const body = await sessions(stub);
+    expect(body.hosts).toEqual([]);
+    expect(body.cloud).toEqual([]);
+    expect(JSON.stringify(body)).not.toContain("secret-token");
+  });
+
+  it("prunes expired codes during a snapshot", async () => {
+    const stub = relay();
+    const { code } = (await (await post(stub, "/pair", config)).json()) as { code: string };
+    await expire(stub, code);
+    await sessions(stub);
+    await runInDurableObject(stub, async (instance: RelayDO) => {
+      const ctx = (instance as unknown as { ctx: DurableObjectState }).ctx;
+      expect(await ctx.storage.get(`pair:${code}`)).toBeUndefined();
+    });
   });
 });

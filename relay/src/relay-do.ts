@@ -15,6 +15,17 @@ interface CloudRecord {
   received_at: number;
 }
 
+interface PairRecord {
+  url: string;
+  token: string;
+  expires_at: number;
+}
+
+/// Pairing codes hand the relay config to a new machine. Single-use,
+/// short-lived, 128-bit — the code itself is the credential, so entropy
+/// (not rate limiting) is the defense.
+export const PAIR_TTL_S = 10 * 60;
+
 /// Single-instance store for everything remote. Hosts push whole snapshots
 /// (the snapshot doubles as the host's heartbeat); cloud sandboxes push raw
 /// hook payloads that get classified here. All staleness math everywhere
@@ -48,6 +59,35 @@ export class RelayDO extends DurableObject<Env> {
       const payload = (await request.json().catch(() => ({}))) as Record<string, unknown>;
       await this.ingestHook(payload, now);
       return Response.json({ ok: true });
+    }
+
+    if (request.method === "POST" && url.pathname === "/pair") {
+      const body = (await request.json().catch(() => null)) as
+        { url?: unknown; token?: unknown } | null;
+      if (!body || typeof body.url !== "string" || !body.url ||
+          typeof body.token !== "string" || !body.token) {
+        return new Response("invalid body", { status: 400 });
+      }
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const code = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const record: PairRecord = { url: body.url, token: body.token, expires_at: now + PAIR_TTL_S };
+      await this.ctx.storage.put(`pair:${code}`, record);
+      return Response.json({ code, expires_at: record.expires_at });
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/pair/")) {
+      const code = url.pathname.slice("/pair/".length);
+      const record = await this.ctx.storage.get<PairRecord>(`pair:${code}`);
+      // Delete before returning (single-use), and answer unknown, expired,
+      // and already-used codes identically — a uniform 404 gives no oracle.
+      if (record) {
+        await this.ctx.storage.delete(`pair:${code}`);
+        if (record.expires_at > now) {
+          return Response.json({ url: record.url, token: record.token });
+        }
+      }
+      return new Response("not found", { status: 404 });
     }
 
     if (request.method === "GET" && url.pathname === "/sessions") {
@@ -117,6 +157,12 @@ export class RelayDO extends DurableObject<Env> {
           continue;
         }
         cloud.push(record);
+      } else if (key.startsWith("pair:")) {
+        // Never included in the response; lazy pruning only, so codes
+        // don't outlive their TTL in storage.
+        if ((value as PairRecord).expires_at <= now) {
+          await this.ctx.storage.delete(key);
+        }
       }
     }
     return { now, hosts, cloud };
