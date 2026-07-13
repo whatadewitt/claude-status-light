@@ -23,4 +23,23 @@ struct RelayConfig: Equatable {
             ?? ProcessInfo.processInfo.hostName
         return RelayConfig(url: url, token: token, host: host)
     }
+
+    /// Short hostname the same way deploy-relay.sh computes it
+    /// (gethostname up to the first dot).
+    static func shortHostname() -> String {
+        String(ProcessInfo.processInfo.hostName.split(separator: ".").first ?? "mac")
+    }
+
+    /// Writes the config the way scripts/deploy-relay.sh does: pretty JSON,
+    /// owner-only permissions.
+    func write(to file: URL = RelayConfig.defaultPath) throws {
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let data = try JSONSerialization.data(
+            withJSONObject: ["url": url.absoluteString, "token": token, "host": host],
+            options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: file)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: file.path)
+    }
 }
