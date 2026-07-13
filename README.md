@@ -124,10 +124,11 @@ this Mac:    hooks → files ─────────────────
 Everything meets at a tiny relay Worker (in `relay/`) deployed to your own
 Cloudflare account. Setup, one leg at a time:
 
-- **Main Mac (the one showing the light):** `scripts/deploy-relay.sh` — deploys
-  the Worker (wrangler opens a Cloudflare login on first use), generates a
-  bearer token, and writes `~/.claude/status-light/relay.json`. Restart the app
-  and it starts polling.
+- **Main Mac (the one showing the light):** open **Settings → Remote
+  sessions → Set up Cloudflare relay…** — a browser window asks you to log
+  in to Cloudflare, then the app deploys the relay Worker and writes
+  `~/.claude/status-light/relay.json` itself. No node, npm, or wrangler
+  needed. (CLI alternative: `scripts/deploy-relay.sh`, which does need npm.)
 - **Each remote Mac:** copy `relay.json` over (edit `"host"` to a label you'll
   recognize), then run `scripts/install-publisher.sh` there. It builds the same
   binary and registers a launchd agent that runs `claude-status-light --publish`,
@@ -147,6 +148,11 @@ whether it's "no remote work" or "no signal".
 Privacy: the relay runs in your own Cloudflare account, behind a bearer token
 only your machines hold. It carries session states, working-directory names,
 and task titles — never code, prompts, or transcripts.
+
+The in-app login uses the same OAuth flow (and public client ID) as
+Cloudflare's own `wrangler login` — Cloudflare doesn't offer third-party
+OAuth registration. If that ever stops working, `scripts/deploy-relay.sh`
+is the supported fallback.
 
 ## Install
 
@@ -200,6 +206,11 @@ Sources/ClaudeStatusLight/
   RemoteWire.swift                relay wire format + SessionState conversions
   RemoteStore.swift               polls the relay, merges remote sessions
   Publisher.swift                 --publish mode: mirrors local state upward
+  CloudflareOAuth.swift           PKCE + wrangler's OAuth contract (pure)
+  CloudflareAuth.swift            Keychain tokens, loopback callback, login
+  CloudflareAPI.swift             REST request builders for the deploy
+  CloudflareDeploy.swift          five-step deploy engine with progress
+  RelayWorkerDist.swift           generated — bundled relay Worker JS
 relay/                            Cloudflare Worker + Durable Object relay
 hooks/status-hook.sh              records per-session state (no jq required)
 hooks/status-relay.sh             cloud-sandbox hook: POSTs events to the relay
@@ -209,4 +220,5 @@ scripts/merge_settings.py         idempotent settings.json hook editor
 scripts/deploy-relay.sh           deploy the relay Worker, write relay.json
 scripts/install-publisher.sh      set up a remote Mac to publish sessions
 scripts/enable-cloud-hooks.sh     commit the relay hook into a repo for cloud
+scripts/build-relay-dist.sh       regenerate RelayWorkerDist.swift (dev-side)
 ```
