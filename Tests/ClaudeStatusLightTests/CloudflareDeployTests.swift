@@ -75,6 +75,18 @@ struct CloudflareDeployTests {
         }
     }
 
+    @Test func unparseableResponseSurfacesAHonestParseError() async throws {
+        let http = MockHTTP([(200, "not json")])
+        let deployer = CloudflareDeployer(http: http) { accounts in accounts[0] }
+        do {
+            _ = try await deployer.deploy(accessToken: "tok", existing: nil,
+                                          configPath: tempConfigPath()) { _ in }
+            Issue.record("expected deploy to throw")
+        } catch let error as DeployError {
+            #expect(error.errorDescription?.contains("parse") == true)
+        }
+    }
+
     @Test func multipleAccountsGoThroughThePicker() async throws {
         let http = scriptedHTTP(existsStatus: 404)
         http.responses[0] = (200, envelope(#"[{"id":"a1","name":"One"},{"id":"a2","name":"Two"}]"#))

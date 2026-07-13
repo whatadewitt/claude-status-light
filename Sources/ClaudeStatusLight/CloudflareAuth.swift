@@ -98,10 +98,12 @@ final class OAuthCallbackServer {
     static func start(port: UInt16?, expectedState: String) async throws -> OAuthCallbackServer {
         let listener: NWListener
         do {
+            let params = NWParameters.tcp
+            params.requiredInterfaceType = .loopback
             if let port, let nwPort = NWEndpoint.Port(rawValue: port) {
-                listener = try NWListener(using: .tcp, on: nwPort)
+                listener = try NWListener(using: params, on: nwPort)
             } else {
-                listener = try NWListener(using: .tcp)
+                listener = try NWListener(using: params)
             }
         } catch {
             throw AuthError.portInUse
@@ -148,9 +150,14 @@ final class OAuthCallbackServer {
                 }
             }
             group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                // Resume the waiting continuation too — a bare throw here
-                // would leak it when the group is cancelled.
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                } catch {
+                    // Resume the waiting continuation too — a bare throw here
+                    // would leak it when the group (and this sleep) is cancelled.
+                    self.deliver(.failure(error))
+                    throw error
+                }
                 self.deliver(.failure(AuthError.timeout))
                 throw AuthError.timeout
             }

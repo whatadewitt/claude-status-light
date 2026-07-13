@@ -56,6 +56,17 @@ struct CloudflareAuthTests {
         #expect(try await code == "c0de")
     }
 
+    @Test func waitForCodeResumesPromptlyWhenCancelled() async throws {
+        let server = try await OAuthCallbackServer.start(port: nil, expectedState: "st100")
+        defer { server.cancel() }
+
+        let task = Task { try await server.waitForCode(timeout: 60) }
+        task.cancel()
+        await #expect(throws: Error.self) {
+            try await task.value
+        }
+    }
+
     @Test func refreshPathUpdatesKeychainWithoutBrowser() async throws {
         let store = freshStore()
         defer { store.delete() }

@@ -170,6 +170,7 @@ final class SettingsWindowController: NSObject {
                 self?.relayButton?.isEnabled = true
             }
             relayButton?.isEnabled = false
+            sheet.onCancel = { [weak self] in self?.deployTask?.cancel() }
 
             deployTask = Task { @MainActor [weak self] in
                 defer { self?.deployTask = nil }
@@ -181,12 +182,14 @@ final class SettingsWindowController: NSObject {
                     }
                     let config = try await deployer.deploy(accessToken: token,
                                                            existing: RelayConfig.load()) { step in
-                        Task { @MainActor in sheet.begin(step.label) }
+                        sheet.begin(step.label)
                     }
                     sheet.finish("Done — \(config.url.absoluteString)")
                     self?.relayStatus?.stringValue = Self.relayStatusText(config: config)
                     self?.relayButton?.title = Self.relayButtonTitle(config: config)
                     self?.onRelayChanged?()
+                } catch is CancellationError {
+                    // The user already dismissed the sheet; leave it alone.
                 } catch {
                     sheet.fail(error.localizedDescription)
                 }
@@ -201,12 +204,15 @@ final class SettingsWindowController: NSObject {
 final class DeployProgressSheet {
     let window: NSWindow
     private let log = NSTextField(wrappingLabelWithString: "")
-    private let close = NSButton(title: "Close", target: nil, action: nil)
+    private let close = NSButton(title: "Cancel", target: nil, action: nil)
     private var lines: [String] = []
     private var invokers: [ClosureInvoker] = []
     private var indexChoice: CheckedContinuation<Int, Never>?
     private let accountPopup = NSPopUpButton()
     private let accountRow = NSStackView()
+    /// Invoked when the user dismisses the sheet before it finished or
+    /// failed on its own — the caller cancels the in-flight deploy task.
+    var onCancel: (() -> Void)?
 
     init() {
         window = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
@@ -238,7 +244,6 @@ final class DeployProgressSheet {
         stack.addArrangedSubview(accountRow)
 
         close.bezelStyle = .rounded
-        close.isEnabled = false
         stack.addArrangedSubview(close)
 
         let content = NSView()
@@ -269,6 +274,7 @@ final class DeployProgressSheet {
     func finish(_ message: String) {
         begin(message)  // checks off the last step
         lines[lines.count - 1] = "✓ " + message
+        close.title = "Close"
         close.isEnabled = true
         render()
     }
@@ -276,13 +282,16 @@ final class DeployProgressSheet {
     func fail(_ message: String) {
         lines.append("✗ " + message)
         lines.append("CLI alternative: scripts/deploy-relay.sh")
+        close.title = "Close"
         close.isEnabled = true
         render()
     }
 
     func pickAccount(from accounts: [CFAccount]) async -> CFAccount {
         accountPopup.removeAllItems()
-        accountPopup.addItems(withTitles: accounts.map { "\($0.name)" })
+        for account in accounts {
+            accountPopup.menu?.addItem(NSMenuItem(title: account.name, action: nil, keyEquivalent: ""))
+        }
         accountRow.isHidden = false
         render()
         let chosen = await withCheckedContinuation { (cont: CheckedContinuation<Int, Never>) in
@@ -298,6 +307,7 @@ final class DeployProgressSheet {
     }
 
     private func dismiss() {
+        onCancel?()
         window.sheetParent?.endSheet(window)
     }
 

@@ -16,14 +16,14 @@ enum DeployStep: CaseIterable {
 
 enum DeployError: LocalizedError {
     case badStatus(Int)
+    case badResponse(Int)
     case noAccounts
-    case cancelled
 
     var errorDescription: String? {
         switch self {
         case .badStatus(let code): return "Cloudflare returned HTTP \(code)."
+        case .badResponse(let code): return "Couldn't parse Cloudflare's response (HTTP \(code))."
         case .noAccounts: return "Your Cloudflare login has no accounts."
-        case .cancelled: return "Deploy cancelled."
         }
     }
 }
@@ -42,13 +42,13 @@ struct CloudflareDeployer {
 
     func deploy(accessToken token: String, existing: RelayConfig?,
                 configPath: URL = RelayConfig.defaultPath,
-                progress: @escaping (DeployStep) -> Void) async throws -> RelayConfig {
-        progress(.account)
+                progress: @escaping @MainActor (DeployStep) -> Void) async throws -> RelayConfig {
+        await progress(.account)
         let accounts: [CFAccount] = try await fetch(CloudflareAPI.accountsRequest(token: token))
         guard let first = accounts.first else { throw DeployError.noAccounts }
         let account = accounts.count == 1 ? first : try await pickAccount(accounts)
 
-        progress(.upload)
+        await progress(.upload)
         // Existence probe decides whether the upload carries the first-run
         // DO migration (sending it again with a mismatched tag is rejected).
         let (_, probe) = try await http.data(
@@ -58,18 +58,18 @@ struct CloudflareDeployer {
             account: account.id, includeMigration: !exists,
             moduleJS: RelayWorkerDist.moduleJS, token: token))
 
-        progress(.url)
+        await progress(.url)
         let _: SubdomainEnabled = try await fetch(
             CloudflareAPI.enableSubdomainRequest(account: account.id, token: token))
         let sub: SubdomainResult = try await fetch(
             CloudflareAPI.accountSubdomainRequest(account: account.id, token: token))
 
-        progress(.secret)
+        await progress(.secret)
         let relayToken = CloudflareAPI.newRelayToken(existing: existing)
         let _: SecretResult = try await fetch(
             CloudflareAPI.secretRequest(account: account.id, relayToken: relayToken, token: token))
 
-        progress(.config)
+        await progress(.config)
         let config = RelayConfig(url: CloudflareAPI.workerURL(subdomain: sub.subdomain),
                                  token: relayToken,
                                  host: existing?.host ?? RelayConfig.shortHostname())
@@ -82,7 +82,7 @@ struct CloudflareDeployer {
     private func fetch<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await http.data(for: request)
         guard let envelope = try? JSONDecoder().decode(CFEnvelope<T>.self, from: data) else {
-            throw DeployError.badStatus(response.statusCode)
+            throw DeployError.badResponse(response.statusCode)
         }
         guard envelope.success, let result = envelope.result else {
             throw envelope.errors.first ?? DeployError.badStatus(response.statusCode)

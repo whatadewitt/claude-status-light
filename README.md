@@ -154,6 +154,10 @@ Cloudflare's own `wrangler login` — Cloudflare doesn't offer third-party
 OAuth registration. If that ever stops working, `scripts/deploy-relay.sh`
 is the supported fallback.
 
+If your Cloudflare account has never used Workers, open the **Workers &
+Pages** tab in the dashboard once first — Cloudflare asks you to pick your
+account's workers.dev subdomain there, and the deploy needs it to exist.
+
 ## Install
 
 Requires macOS with Xcode or the Command Line Tools (`xcode-select --install`).
