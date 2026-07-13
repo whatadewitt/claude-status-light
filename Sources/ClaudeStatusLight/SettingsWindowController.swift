@@ -14,6 +14,9 @@ final class SettingsWindowController: NSObject {
     private var relayStatus: NSTextField?
     private var relayButton: NSButton?
     private var deployTask: Task<Void, Never>?
+    /// Retains the presented sheet — the deploy task finishes long before the
+    /// user clicks Close, and a deallocated sheet can't dismiss its window.
+    private var activeSheet: DeployProgressSheet?
 
     func show() {
         if window == nil { build() }
@@ -158,14 +161,18 @@ final class SettingsWindowController: NSObject {
         MainActor.assumeIsolated {
             guard deployTask == nil, let window else { return }
             let sheet = DeployProgressSheet()
-            window.beginSheet(sheet.window)
+            // Retain until dismissed: the deploy task (the only other strong
+            // reference) ends well before the user clicks Close, and the
+            // button must stay disabled while the sheet is still up.
+            activeSheet = sheet
+            window.beginSheet(sheet.window) { [weak self] _ in
+                self?.activeSheet = nil
+                self?.relayButton?.isEnabled = true
+            }
             relayButton?.isEnabled = false
 
             deployTask = Task { @MainActor [weak self] in
-                defer {
-                    self?.deployTask = nil
-                    self?.relayButton?.isEnabled = true
-                }
+                defer { self?.deployTask = nil }
                 do {
                     sheet.begin("Logging in")
                     let token = try await CloudflareAuth().accessToken()
