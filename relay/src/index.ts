@@ -17,7 +17,12 @@ async function authorized(request: Request, env: Env): Promise<boolean> {
 
 export default {
   async fetch(request, env, _ctx): Promise<Response> {
-    if (!(await authorized(request, env))) {
+    // GET /pair/<code> is the one unauthenticated route: it exists for a
+    // machine that doesn't have the bearer token yet, and the 128-bit
+    // single-use code is its own credential (see relay-do.ts).
+    const url = new URL(request.url);
+    const pairRedeem = request.method === "GET" && url.pathname.startsWith("/pair/");
+    if (!pairRedeem && !(await authorized(request, env))) {
       return new Response("unauthorized", { status: 401 });
     }
     // One DO holds all state: strong consistency, one clock for all

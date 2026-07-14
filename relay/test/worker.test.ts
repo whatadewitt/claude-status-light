@@ -56,3 +56,31 @@ describe("end to end through the worker", () => {
     expect(body.hosts.map((h) => h.name)).toContain("office-mini");
   });
 });
+
+describe("pair redemption through the worker", () => {
+  it("POST /pair requires auth; GET /pair/<code> does not", async () => {
+    const unauthedPost = await exports.default.fetch(
+      request("/pair", { method: "POST", body: JSON.stringify({ url: "https://r", token: "t" }) }),
+    );
+    expect(unauthedPost.status).toBe(401);
+
+    const created = await exports.default.fetch(
+      request(
+        "/pair",
+        { method: "POST", body: JSON.stringify({ url: "https://r.example", token: "tok" }) },
+        "test-token",
+      ),
+    );
+    expect(created.status).toBe(200);
+    const { code } = (await created.json()) as { code: string };
+
+    const redeemed = await exports.default.fetch(request(`/pair/${code}`));
+    expect(redeemed.status).toBe(200);
+    expect(await redeemed.json()).toEqual({ url: "https://r.example", token: "tok" });
+  });
+
+  it("unauthenticated GET of an unknown code is 404, not 401", async () => {
+    const res = await exports.default.fetch(request(`/pair/${"f".repeat(32)}`));
+    expect(res.status).toBe(404);
+  });
+});
