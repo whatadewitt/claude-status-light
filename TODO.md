@@ -16,12 +16,10 @@
   revokes the ID. Add a flow that opens the dashboard's create-token page
   (pre-filled permissions) and accepts a pasted token; consider making it
   the default and keeping OAuth as the shortcut.
-- **Pairing-code sync for other machines.** (next up) Instead of copying
-  relay.json by hand: main Mac POSTs the config to a `/pair` endpoint
-  (bearer-authed) and shows a short-lived, single-use, high-entropy code;
-  the other machine enters URL + code, fetches the config once, writes
-  relay.json. Same Worker/DO, two new routes; receiving end could be a
-  `--pair` flag grown by install-publisher.sh or a first-launch prompt.
+- **First-launch pairing prompt for viewer Macs.** Pairing now covers
+  publisher setup (`install-publisher.sh --pair`), but a Mac that only
+  *views* remote sessions still copies relay.json by hand — offer a
+  paste-a-code prompt in the app itself.
 - **Tailscale Funnel relay alternative.** For users who'd rather not use
   Cloudflare: serve the same API from a tiny local server exposed via
   Tailscale Funnel / plain tailnet.

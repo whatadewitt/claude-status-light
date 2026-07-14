@@ -129,10 +129,14 @@ Cloudflare account. Setup, one leg at a time:
   in to Cloudflare, then the app deploys the relay Worker and writes
   `~/.claude/status-light/relay.json` itself. No node, npm, or wrangler
   needed. (CLI alternative: `scripts/deploy-relay.sh`, which does need npm.)
-- **Each remote Mac:** copy `relay.json` over (edit `"host"` to a label you'll
-  recognize), then run `scripts/install-publisher.sh` there. It builds the same
-  binary and registers a launchd agent that runs `claude-status-light --publish`,
-  mirroring that Mac's local session files to the relay.
+- **Each remote Mac:** in Settings on the main Mac, click **Pair another
+  machine…** — it shows a one-liner like
+  `scripts/install-publisher.sh --pair <url> <code>` (code is single-use,
+  expires in 10 minutes). Run that from a clone of this repo on the remote
+  Mac: it fetches the relay config, writes `relay.json` with that Mac's own
+  hostname, builds the same binary, and registers a launchd agent that runs
+  `claude-status-light --publish`. (Manual fallback: copy `relay.json` over,
+  edit `"host"`, and run `scripts/install-publisher.sh` bare.)
 - **Cloud sessions, per repo:** `scripts/enable-cloud-hooks.sh <repo>` commits
   `.claude/status-relay.sh` and its hook entries into that repo (user-level
   settings never sync to cloud sandboxes). Then set `STATUS_LIGHT_RELAY_URL`
