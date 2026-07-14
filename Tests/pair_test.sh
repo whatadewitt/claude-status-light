@@ -83,4 +83,15 @@ STATUS=$?
 set -e
 [ "$STATUS" -eq 1 ] || { echo "FAIL: expected exit 1 for missing code, got $STATUS"; exit 1; }
 
+echo "--- network failure does not claim the code expired"
+set +e
+OUT="$(bash "$HERE/scripts/install-publisher.sh" --pair "http://127.0.0.1:9" "$CODE" 2>&1)"
+STATUS=$?
+set -e
+[ "$STATUS" -eq 1 ] || { echo "FAIL: expected exit 1 on network failure, got $STATUS"; exit 1; }
+if echo "$OUT" | grep -q "expired or already used"; then
+    echo "FAIL: network error misreported as expired code: $OUT"; exit 1
+fi
+echo "$OUT" | grep -q "could not reach the relay" || { echo "FAIL: missing network guidance: $OUT"; exit 1; }
+
 echo "pair_test.sh: all checks passed"

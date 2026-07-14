@@ -31,10 +31,19 @@ done
 
 if [ -n "$PAIR_URL" ] && [ -n "$PAIR_CODE" ]; then
     echo "Fetching relay config…"
-    BODY="$(curl -fsS "${PAIR_URL%/}/pair/$PAIR_CODE")" || {
-        echo "code expired or already used — generate a new one from Settings on your main Mac." >&2
+    RESPONSE="$(curl -sS -w $'\n%{http_code}' "${PAIR_URL%/}/pair/$PAIR_CODE")" || {
+        echo "could not reach the relay at $PAIR_URL — check the URL and your network." >&2
         exit 1
     }
+    HTTP_CODE="${RESPONSE##*$'\n'}"
+    BODY="${RESPONSE%$'\n'*}"
+    if [ "$HTTP_CODE" = "404" ]; then
+        echo "code expired or already used — generate a new one from Settings on your main Mac." >&2
+        exit 1
+    elif [ "$HTTP_CODE" != "200" ]; then
+        echo "relay returned HTTP $HTTP_CODE — check the URL points at the relay Worker." >&2
+        exit 1
+    fi
     mkdir -p "$(dirname "$CONFIG")"
     python3 - "$CONFIG" "$BODY" <<'PY'
 import json, socket, sys
