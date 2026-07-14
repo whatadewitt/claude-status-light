@@ -83,4 +83,11 @@ describe("pair redemption through the worker", () => {
     const res = await exports.default.fetch(request(`/pair/${"f".repeat(32)}`));
     expect(res.status).toBe(404);
   });
+
+  it("non-GET methods on /pair/<code> still require auth", async () => {
+    const res = await exports.default.fetch(
+      request(`/pair/${"f".repeat(32)}`, { method: "DELETE" }),
+    );
+    expect(res.status).toBe(401);
+  });
 });
