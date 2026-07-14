@@ -240,7 +240,7 @@ final class SettingsWindowController: NSObject {
                         return
                     }
                     let (data, response) = try await URLSession.shared.data(for: request)
-                    guard (response as? HTTPURLResponse)?.statusCode == 200,
+                    guard response.statusCode == 200,
                           let decoded = Pairing.decode(data) else {
                         sheet.fail("The relay refused the pairing request — "
                                    + "re-deploy the relay (it may predate pairing) and try again.")
