@@ -48,9 +48,14 @@ jobs:
           bash -n scripts/uninstall.sh
           bash -n scripts/test.sh
           bash -n Tests/hook_test.sh
+          bash -n scripts/install-publisher.sh
+          bash -n Tests/pair_test.sh
 
       - name: Hook behavior
         run: bash Tests/hook_test.sh
+
+      - name: Pairing flow (install-publisher.sh --pair)
+        run: bash Tests/pair_test.sh
 
       - name: Python compiles
         run: python3 -m py_compile scripts/merge_settings.py
