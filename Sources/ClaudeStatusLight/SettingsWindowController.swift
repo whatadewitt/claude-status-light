@@ -17,6 +17,10 @@ final class SettingsWindowController: NSObject {
     /// Retains the presented sheet — the deploy task finishes long before the
     /// user clicks Close, and a deallocated sheet can't dismiss its window.
     private var activeSheet: DeployProgressSheet?
+    private var pairButton: NSButton?
+    private var pairTask: Task<Void, Never>?
+    /// Retained for the same reason as activeSheet.
+    private var activePairSheet: PairSheet?
 
     func show() {
         if window == nil { build() }
@@ -104,6 +108,16 @@ final class SettingsWindowController: NSObject {
         relayButton = deploy
         stack.addArrangedSubview(deploy)
 
+        let pair = NSButton(title: "Pair another machine…", target: nil, action: nil)
+        pair.bezelStyle = .rounded
+        let pairInvoker = ClosureInvoker { [weak self] in self?.runPair() }
+        pair.target = pairInvoker
+        pair.action = #selector(ClosureInvoker.fire)
+        invokers.append(pairInvoker)
+        pair.isHidden = Self.pairButtonHidden(config: relayConfig)
+        pairButton = pair
+        stack.addArrangedSubview(pair)
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 320),
             styleMask: [.titled, .closable],
@@ -188,6 +202,51 @@ final class SettingsWindowController: NSObject {
                     self?.relayStatus?.stringValue = Self.relayStatusText(config: config)
                     self?.relayButton?.title = Self.relayButtonTitle(config: config)
                     self?.onRelayChanged?()
+                    self?.pairButton?.isHidden = false
+                } catch is CancellationError {
+                    // The user already dismissed the sheet; leave it alone.
+                } catch {
+                    sheet.fail(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    /// Pairing hands out THIS machine's relay config — pointless (and a
+    /// guaranteed failure) before one exists.
+    static func pairButtonHidden(config: RelayConfig?) -> Bool {
+        config == nil
+    }
+
+    private func runPair() {
+        // Same main-thread reality as runDeploy: assert it so the
+        // @MainActor PairSheet can be constructed without an await.
+        MainActor.assumeIsolated {
+            guard pairTask == nil, let window, let config = RelayConfig.load() else { return }
+            let sheet = PairSheet()
+            activePairSheet = sheet
+            window.beginSheet(sheet.window) { [weak self] _ in
+                self?.activePairSheet = nil
+                self?.pairButton?.isEnabled = true
+            }
+            pairButton?.isEnabled = false
+            sheet.onCancel = { [weak self] in self?.pairTask?.cancel() }
+
+            pairTask = Task { @MainActor [weak self] in
+                defer { self?.pairTask = nil }
+                do {
+                    guard let request = Pairing.request(config: config) else {
+                        sheet.fail("Relay URL is malformed — re-run the relay setup.")
+                        return
+                    }
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    guard (response as? HTTPURLResponse)?.statusCode == 200,
+                          let decoded = Pairing.decode(data) else {
+                        sheet.fail("The relay refused the pairing request — "
+                                   + "re-deploy the relay (it may predate pairing) and try again.")
+                        return
+                    }
+                    sheet.show(command: Pairing.command(url: config.url, code: decoded.code))
                 } catch is CancellationError {
                     // The user already dismissed the sheet; leave it alone.
                 } catch {

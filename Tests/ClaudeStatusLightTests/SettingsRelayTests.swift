@@ -20,4 +20,10 @@ struct SettingsRelayTests {
         store.stop()   // must not crash, must be idempotent
         store.stop()
     }
+
+    @Test func pairButtonOnlyShowsWhenConfigured() {
+        #expect(SettingsWindowController.pairButtonHidden(config: nil))
+        let config = RelayConfig(url: URL(string: "https://x")!, token: "t", host: "h")
+        #expect(!SettingsWindowController.pairButtonHidden(config: config))
+    }
 }
