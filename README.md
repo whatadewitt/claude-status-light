@@ -163,7 +163,7 @@ account's workers.dev subdomain there, and the deploy needs it to exist.
 Requires macOS with Xcode or the Command Line Tools (`xcode-select --install`).
 
 ```bash
-git clone <this repo>
+git clone git@github.com:whatadewitt/claude-status-light.git
 cd claude-status-light
 ./scripts/install.sh
 ```
