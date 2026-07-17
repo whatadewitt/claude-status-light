@@ -136,7 +136,9 @@ Cloudflare account. Setup, one leg at a time:
   Mac: it fetches the relay config, writes `relay.json` with that Mac's own
   hostname, builds the same binary, and registers a launchd agent that runs
   `claude-status-light --publish`. (Manual fallback: copy `relay.json` over,
-  edit `"host"`, and run `scripts/install-publisher.sh` bare.)
+  edit `"host"`, and run `scripts/install-publisher.sh` bare.) To update an
+  already-paired Mac, pull and re-run it bare — it rebuilds against the
+  existing `relay.json`; no new code needed.
 - **Cloud sessions, per repo:** `scripts/enable-cloud-hooks.sh <repo>` commits
   `.claude/status-relay.sh` and its hook entries into that repo (user-level
   settings never sync to cloud sandboxes). Then set `STATUS_LIGHT_RELAY_URL`
@@ -183,6 +185,10 @@ now and at every login.
 > and unsigned, so it runs without a Gatekeeper prompt.
 
 Open a fresh Claude Code session (or restart an open one) so the new hooks load.
+
+**Updating:** after pulling new code, just re-run `./scripts/install.sh` — it
+rebuilds and replaces the installed app in place. (Same idea on a publisher
+Mac: re-run `scripts/install-publisher.sh`, see below.)
 
 ## Uninstall
 
