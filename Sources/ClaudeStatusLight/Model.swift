@@ -35,6 +35,29 @@ enum LightState: String {
     }
 }
 
+/// How full a session's context window is, read from its transcript.
+struct ContextUsage: Equatable {
+    /// Tokens in the window: the prompt side plus the output of the newest
+    /// main-chain assistant turn — what the next turn starts from.
+    let tokens: Int
+    /// The model's window size.
+    let limit: Int
+
+    var percent: Int {
+        guard limit > 0 else { return 0 }
+        return min(100, Int((Double(tokens) / Double(limit) * 100).rounded()))
+    }
+
+    /// Tooltip detail: "context: 124k / 200k tokens (62%)".
+    var detail: String {
+        "context: \(Self.compact(tokens)) / \(Self.compact(limit)) tokens (\(percent)%)"
+    }
+
+    static func compact(_ tokens: Int) -> String {
+        tokens >= 1000 ? "\(Int((Double(tokens) / 1000).rounded()))k" : "\(tokens)"
+    }
+}
+
 /// One Claude Code session's reported state.
 struct SessionState {
     let sessionID: String
@@ -52,6 +75,10 @@ struct SessionState {
     let title: String?
     /// Commands of Bash tool shells still running under this session's pid.
     let shells: [String]
+
+    /// Context-window fill from the session's transcript; nil when there is
+    /// no readable transcript (cloud sessions, sessions with no turns yet).
+    var contextUsage: ContextUsage? = nil
 
     /// Where this session lives: nil = this Mac, else a publisher's host
     /// label or "cloud". Remote sessions can't be PID-checked or focused.
@@ -104,6 +131,13 @@ struct SessionState {
         agents > 0 ? " · \(agents) agent\(agents == 1 ? "" : "s")" : ""
     }
 
+    /// " · 62% ctx" when the transcript reports context usage, empty
+    /// otherwise. Row surfaces gate this on the "show context usage"
+    /// setting; the tooltip always carries the detail.
+    var usageSuffix: String {
+        contextUsage.map { " · \($0.percent)% ctx" } ?? ""
+    }
+
     /// What Claude-spawned shell work is still running: the command
     /// (truncated) for a single shell, just a count for several. Full
     /// commands are in the tooltip. Titled agent rows suppress this — the
@@ -129,6 +163,9 @@ struct SessionState {
             lines.append("parked — idle \(minutes)m, process alive")
         } else if isBackground {
             lines.append("background session (no terminal)")
+        }
+        if let contextUsage {
+            lines.append(contextUsage.detail)
         }
         lines.append(contentsOf: shells.map { "sh: \($0.prefix(300))" })
         return lines.joined(separator: "\n")

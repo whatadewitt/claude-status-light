@@ -20,6 +20,9 @@ final class StateStore {
     /// transcript costs one stat per poll instead of a re-read.
     private var titleCache: [String: (size: Int64, title: String?)] = [:]
 
+    /// Context usage per transcript path, cached the same way as titles.
+    private var usageCache: [String: (size: Int64, usage: ContextUsage?)] = [:]
+
     /// Bash tool shells still running under a session pid — injectable so
     /// tests don't depend on the live process table.
     private let shellsForPid: (Int) -> [String]
@@ -89,6 +92,7 @@ final class StateStore {
             let shells = (state == .idle ? pid.map(shellsForPid) : nil) ?? []
             let effectiveState: LightState = shells.isEmpty ? state : .working
 
+            let transcriptPath = (obj["transcript_path"] as? String) ?? ""
             result.append(SessionState(
                 sessionID: id,
                 state: effectiveState,
@@ -98,8 +102,9 @@ final class StateStore {
                 pid: pid,
                 updatedAt: updatedAt,
                 agents: agents,
-                title: title(forTranscriptAt: (obj["transcript_path"] as? String) ?? ""),
-                shells: shells
+                title: title(forTranscriptAt: transcriptPath),
+                shells: shells,
+                contextUsage: contextUsage(forTranscriptAt: transcriptPath)
             ))
         }
         return result.sorted { $0.updatedAt > $1.updatedAt }
@@ -146,6 +151,63 @@ final class StateStore {
         }
         let title = agentName ?? aiTitle
         return (title?.isEmpty ?? true) ? nil : title
+    }
+
+    // MARK: - Transcript context usage
+
+    /// How full the session's context window is. Usage lives in the newest
+    /// assistant message, so reading the tail is enough.
+    private func contextUsage(forTranscriptAt path: String) -> ContextUsage? {
+        guard !path.isEmpty,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attrs[.size] as? Int64
+        else { return nil }
+
+        if let cached = usageCache[path], cached.size == size {
+            return cached.usage
+        }
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        let window: Int64 = 256 * 1024
+        if size > window {
+            guard (try? handle.seek(toOffset: UInt64(size - window))) != nil else { return nil }
+        }
+        guard let tail = try? handle.read(upToCount: Int(min(size, window))) else { return nil }
+
+        let usage = Self.extractUsage(from: String(decoding: tail, as: UTF8.self))
+        usageCache[path] = (size, usage)
+        return usage
+    }
+
+    /// Context usage from the newest main-chain assistant message in the
+    /// given transcript tail: its prompt-side tokens (fresh + cache reads +
+    /// cache writes) plus its output are what the next turn starts from.
+    /// Sidechain (subagent) messages report the agent's own window, not the
+    /// session's, and are skipped. A first line cut off by the tail window
+    /// fails to decode and is skipped, as are synthetic zero-usage entries.
+    static func extractUsage(from tail: String) -> ContextUsage? {
+        for line in tail.split(separator: "\n").reversed() {
+            guard line.contains("\"usage\"") else { continue }
+            guard let obj = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                  (obj["isSidechain"] as? Bool) != true,
+                  let message = obj["message"] as? [String: Any],
+                  let usage = message["usage"] as? [String: Any]
+            else { continue }
+            let tokens = ["input_tokens", "cache_creation_input_tokens",
+                          "cache_read_input_tokens", "output_tokens"]
+                .compactMap { usage[$0] as? Int }
+                .reduce(0, +)
+            guard tokens > 0 else { continue }
+            let model = (message["model"] as? String) ?? ""
+            return ContextUsage(tokens: tokens, limit: contextLimit(forModel: model))
+        }
+        return nil
+    }
+
+    /// Window size for a transcript's model id — 1M for long-context
+    /// variants (tagged "[1m]"), the standard 200k otherwise.
+    static func contextLimit(forModel model: String) -> Int {
+        model.contains("[1m]") ? 1_000_000 : 200_000
     }
 
     /// Highest-priority state across sessions. Red (blocked on you) always wins;

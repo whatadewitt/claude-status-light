@@ -130,7 +130,8 @@ final class FloatingPanelController: NSObject {
     }
 
     private func makeSessionButton(_ session: SessionState) -> NSButton {
-        let button = NSButton(title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix)\(session.agentsSuffix)", target: nil, action: nil)
+        let usage = Settings.shared.showContextUsage ? session.usageSuffix : ""
+        let button = NSButton(title: "\(session.state.dot) \(session.displayName)\(session.shellsSuffix)\(session.agentsSuffix)\(usage)", target: nil, action: nil)
         button.isBordered = false
         button.alignment = .left
         button.contentTintColor = session.isParked ? .secondaryLabelColor : .labelColor

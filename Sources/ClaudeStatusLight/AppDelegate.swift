@@ -171,8 +171,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 hint.isEnabled = false
                 menu.addItem(hint)
             }
+            let showUsage = Settings.shared.showContextUsage
             for session in currentSessions {
-                let title = "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)"
+                let usage = showUsage ? session.usageSuffix : ""
+                let title = "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)\(usage)"
                 let item: NSMenuItem
                 if session.origin == nil {
                     item = NSMenuItem(title: title, action: #selector(ClosureInvoker.fire), keyEquivalent: "")

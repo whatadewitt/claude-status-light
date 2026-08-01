@@ -71,6 +71,9 @@ final class SettingsWindowController: NSObject {
         stack.addArrangedSubview(checkbox("“Awaiting task” (green) outranks “running” (yellow)", settings.greenBeatsYellow) {
             Settings.shared.greenBeatsYellow = $0
         })
+        stack.addArrangedSubview(checkbox("Show context usage on session rows (e.g. “62% ctx”)", settings.showContextUsage) {
+            Settings.shared.showContextUsage = $0
+        })
 
         stack.addArrangedSubview(separator())
         stack.addArrangedSubview(sectionLabel("Icon"))

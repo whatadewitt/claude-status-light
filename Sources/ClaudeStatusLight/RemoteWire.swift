@@ -14,6 +14,11 @@ struct WireSession: Codable, Equatable {
     var title: String?
     var shells: [String]
     var background: Bool
+    /// Context-window fill, both halves or neither (older publishers send
+    /// neither; the pair travels together so the receiver never guesses a
+    /// limit). Encoded only when present, keeping old snapshots byte-stable.
+    var contextTokens: Int? = nil
+    var contextLimit: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case sessionID = "session_id"
@@ -22,6 +27,8 @@ struct WireSession: Codable, Equatable {
         case tty
         case updatedAt = "updated_at"
         case agents, title, shells, background
+        case contextTokens = "context_tokens"
+        case contextLimit = "context_limit"
     }
 }
 
@@ -42,6 +49,8 @@ extension WireSession {
         title = session.title
         shells = session.shells
         background = session.isBackground
+        contextTokens = session.contextUsage?.tokens
+        contextLimit = session.contextUsage?.limit
     }
 
     /// App side: a remote session never carries a pid (liveness is the
@@ -49,11 +58,15 @@ extension WireSession {
     /// rather than guessed.
     func sessionState(origin: String) -> SessionState? {
         guard let light = LightState(rawValue: state) else { return nil }
+        let usage = contextTokens.flatMap { tokens in
+            contextLimit.map { ContextUsage(tokens: tokens, limit: $0) }
+        }
         return SessionState(
             sessionID: sessionID, state: light, cwd: cwd,
             termProgram: termProgram, tty: tty, pid: nil,
             updatedAt: Date(timeIntervalSince1970: updatedAt),
             agents: agents, title: title, shells: shells,
+            contextUsage: usage,
             origin: origin, backgroundOverride: background
         )
     }

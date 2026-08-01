@@ -37,6 +37,18 @@ When any session has subagents running, the icon gains a small blue count
 badge (blue on purpose — it's activity, not a stoplight state), and that
 session's row in the menu and floating window reads "· N agents".
 
+## Context usage
+
+Each session row can show how full that session's context window is — e.g.
+`· 62% ctx` — read from the newest assistant message in its transcript.
+It's on by default; toggle it in **Settings → Behavior** ("Show context usage
+on session rows"). Hovering a row always shows the exact numbers
+(`context: 124k / 200k tokens (62%)`), whether or not the row suffix is on.
+
+Remote host rows report usage too (the publisher reads transcripts on its own
+machine). Cloud sessions have no transcript on any of your machines, so they
+show none.
+
 ## Jumping to a session's terminal
 
 Click the menu-bar light (or a row in the floating window) to list every active

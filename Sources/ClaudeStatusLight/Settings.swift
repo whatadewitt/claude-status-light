@@ -33,6 +33,7 @@ final class Settings {
         static let lockCorner = "lockToCorner"
         static let corner = "floatingCorner"
         static let greenBeatsYellow = "greenBeatsYellow"
+        static let showContextUsage = "showContextUsage"
         static let floatingX = "floatingOriginX"
         static let floatingY = "floatingOriginY"
     }
@@ -45,6 +46,7 @@ final class Settings {
             Key.lockCorner: true,
             Key.corner: ScreenCorner.topRight.rawValue,
             Key.greenBeatsYellow: true,
+            Key.showContextUsage: true,
         ])
     }
 
@@ -72,6 +74,11 @@ final class Settings {
     var greenBeatsYellow: Bool {
         get { defaults.bool(forKey: Key.greenBeatsYellow) }
         set { store(newValue, Key.greenBeatsYellow) }
+    }
+    /// Show each session's context-window fill ("62% ctx") on its row.
+    var showContextUsage: Bool {
+        get { defaults.bool(forKey: Key.showContextUsage) }
+        set { store(newValue, Key.showContextUsage) }
     }
     var corner: ScreenCorner {
         get { ScreenCorner(rawValue: defaults.integer(forKey: Key.corner)) ?? .topRight }
