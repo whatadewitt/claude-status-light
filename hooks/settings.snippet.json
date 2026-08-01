@@ -1,0 +1,26 @@
+{
+  "_comment": "Manual merge fallback. Replace HOOK with the installed path, e.g. /Users/you/.claude/status-light/bin/claude-status.sh. Merge these into the 'hooks' object of ~/.claude/settings.json. The automated installer (scripts/install-hooks.sh) does this for you.",
+  "hooks": {
+    "UserPromptSubmit": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK working" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK working" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK working" } ] }
+    ],
+    "Notification": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK waiting" } ] }
+    ],
+    "Stop": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK idle" } ] }
+    ],
+    "SessionStart": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK idle" } ] }
+    ],
+    "SessionEnd": [
+      { "matcher": "", "hooks": [ { "type": "command", "command": "HOOK end" } ] }
+    ]
+  }
+}
