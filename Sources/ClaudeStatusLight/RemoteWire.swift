@@ -14,6 +14,9 @@ struct WireSession: Codable, Equatable {
     var title: String?
     var shells: [String]
     var background: Bool
+    /// Claude Code permission mode ("default", "plan", …). Optional so old
+    /// publishers and stored relay snapshots decode cleanly.
+    var permissionMode: String?
 
     enum CodingKeys: String, CodingKey {
         case sessionID = "session_id"
@@ -22,6 +25,7 @@ struct WireSession: Codable, Equatable {
         case tty
         case updatedAt = "updated_at"
         case agents, title, shells, background
+        case permissionMode = "permission_mode"
     }
 }
 
@@ -42,6 +46,7 @@ extension WireSession {
         title = session.title
         shells = session.shells
         background = session.isBackground
+        permissionMode = session.permissionMode
     }
 
     /// App side: a remote session never carries a pid (liveness is the
@@ -54,7 +59,8 @@ extension WireSession {
             termProgram: termProgram, tty: tty, pid: nil,
             updatedAt: Date(timeIntervalSince1970: updatedAt),
             agents: agents, title: title, shells: shells,
-            origin: origin, backgroundOverride: background
+            origin: origin, backgroundOverride: background,
+            permissionMode: permissionMode
         )
     }
 }

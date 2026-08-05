@@ -8,7 +8,8 @@ struct RemoteWireTests {
             sessionID: "abc", state: .working, cwd: "/Users/luke/proj",
             termProgram: "iTerm.app", tty: "/dev/ttys001", pid: 42,
             updatedAt: Date(timeIntervalSince1970: 1_752_000_000),
-            agents: 2, title: "Improve win rate", shells: ["uv run train.py"]
+            agents: 2, title: "Improve win rate", shells: ["uv run train.py"],
+            permissionMode: "plan"
         )
         let wire = WireSession(from: local)
         let data = try JSONEncoder().encode(wire)
@@ -24,6 +25,7 @@ struct RemoteWireTests {
         #expect(remote.title == "Improve win rate")
         #expect(remote.shells == ["uv run train.py"])
         #expect(remote.backgroundOverride == false)  // local had a tty
+        #expect(remote.permissionMode == "plan")
     }
 
     @Test func wireUsesSnakeCaseKeys() throws {
@@ -37,6 +39,13 @@ struct RemoteWireTests {
         #expect(json.contains("\"term_program\""))
         #expect(json.contains("\"updated_at\""))
         #expect(json.contains("\"background\":true"))  // pid + empty tty = background
+    }
+
+    @Test func oldWireJsonWithoutModeStillDecodes() throws {
+        let json = #"{"session_id":"x","state":"idle","cwd":"/p","term_program":"t","tty":"","updated_at":1,"agents":0,"title":null,"shells":[],"background":false}"#
+        let wire = try JSONDecoder().decode(WireSession.self, from: Data(json.utf8))
+        #expect(wire.permissionMode == nil)
+        #expect(try #require(wire.sessionState(origin: "h")).permissionMode == nil)
     }
 
     @Test func unknownStateIsDropped() throws {
