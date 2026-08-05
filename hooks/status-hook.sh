@@ -6,11 +6,12 @@
 #     idle | working | attention | end   — session light states
 #     agent-start | agent-stop           — subagent began / finished
 #
-# Reads the Claude Code hook payload (JSON) on stdin, extracts the session_id
-# and cwd, captures the terminal (TERM_PROGRAM + tty) it is running in and the
-# PID of the Claude Code process, and writes a small per-session state file
-# that the menu bar app reads. `end` removes the session's file. The recorded
-# PID lets the app drop sessions whose process died without firing SessionEnd.
+# Reads the Claude Code hook payload (JSON) on stdin, extracts the session_id,
+# cwd, and permission mode, captures the terminal (TERM_PROGRAM + tty) it is
+# running in and the PID of the Claude Code process, and writes a small
+# per-session state file that the menu bar app reads. `end` removes the
+# session's file. The recorded PID lets the app drop sessions whose process
+# died without firing SessionEnd.
 #
 # Must always exit 0 and never block — it runs inline in Claude Code.
 
@@ -144,13 +145,21 @@ if [ -z "$TTY_PATH" ] && [ -f "$FILE" ]; then
     fi
 fi
 
+# Most events carry the live permission mode (default/plan/acceptEdits/…);
+# SessionStart and Notification don't. Keep the recorded mode so those
+# events can't blank it — same sticky pattern as terminal identity above.
+PERMISSION_MODE="$(extract permission_mode)"
+if [ -z "$PERMISSION_MODE" ] && [ -f "$FILE" ]; then
+    PERMISSION_MODE="$(extract_from "$(cat "$FILE" 2>/dev/null || true)" permission_mode)"
+fi
+
 if [ "$STATE" = "end" ]; then
     rm -f "$FILE" 2>/dev/null
     rm -rf "$AGENTS_DIR" 2>/dev/null
 else
     # Minimal JSON string escaping (backslash then quote).
     esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
-    printf '{"state":"%s","session_id":"%s","cwd":"%s","term_program":"%s","tty":"%s","pid":%d,"transcript_path":"%s","updated_at":%s}\n' \
+    printf '{"state":"%s","session_id":"%s","cwd":"%s","term_program":"%s","tty":"%s","pid":%d,"transcript_path":"%s","permission_mode":"%s","updated_at":%s}\n' \
         "$STATE" \
         "$(esc "$SESSION_ID")" \
         "$(esc "$CWD")" \
@@ -158,6 +167,7 @@ else
         "$(esc "$TTY_PATH")" \
         "${CLAUDE_PID:-0}" \
         "$(esc "$TRANSCRIPT")" \
+        "$(esc "$PERMISSION_MODE")" \
         "$(date +%s)" \
         > "$FILE" 2>/dev/null
 fi

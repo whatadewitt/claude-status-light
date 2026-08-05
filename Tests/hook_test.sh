@@ -45,7 +45,7 @@ printf '{"session_id":"test-fields","cwd":"/tmp/proj"}' | bash "$HOOK" attention
 python3 - <<'PY'
 import json, os
 data = json.load(open(os.path.expanduser("~/.claude/status-light/sessions/test-fields.json")))
-for key in ("state", "session_id", "cwd", "term_program", "tty", "pid", "updated_at"):
+for key in ("state", "session_id", "cwd", "term_program", "tty", "pid", "transcript_path", "permission_mode", "updated_at"):
     assert key in data, f"missing {key}: {data}"
 assert data["state"] == "attention", data
 assert data["cwd"] == "/tmp/proj", data
@@ -188,6 +188,35 @@ child_pid = int(out.stdout)
 data = json.load(open(base + "test-headless.json"))
 assert data["state"] == "working", data
 assert data["pid"] == child_pid, f"pid: expected {child_pid}, got {data.get('pid')!r}"
+print("ok")
+PY
+
+echo "--- permission_mode lands in the state file and stays sticky"
+printf '{"session_id":"test-mode","cwd":"/tmp/proj","permission_mode":"plan"}' | bash "$HOOK" working
+# Notification carries no permission_mode — must keep the recorded one.
+printf '{"session_id":"test-mode","message":"Claude needs your permission to use Bash"}' | bash "$HOOK" attention
+python3 - <<'PY'
+import json, os
+data = json.load(open(os.path.expanduser("~/.claude/status-light/sessions/test-mode.json")))
+assert data["permission_mode"] == "plan", data
+print("ok")
+PY
+
+echo "--- a later event with a different mode overwrites it"
+printf '{"session_id":"test-mode","permission_mode":"acceptEdits"}' | bash "$HOOK" working
+python3 - <<'PY'
+import json, os
+data = json.load(open(os.path.expanduser("~/.claude/status-light/sessions/test-mode.json")))
+assert data["permission_mode"] == "acceptEdits", data
+print("ok")
+PY
+
+echo "--- sessions that never saw a mode record an empty one"
+printf '{"session_id":"test-no-mode","cwd":"/tmp/proj"}' | bash "$HOOK" working
+python3 - <<'PY'
+import json, os
+data = json.load(open(os.path.expanduser("~/.claude/status-light/sessions/test-no-mode.json")))
+assert data.get("permission_mode") == "", data
 print("ok")
 PY
 
