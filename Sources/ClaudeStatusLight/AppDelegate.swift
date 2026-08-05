@@ -172,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 menu.addItem(hint)
             }
             for session in currentSessions {
-                let title = "\(session.state.dot) \(session.displayName)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)"
+                let title = "\(session.state.dot) \(session.displayName)\(session.modeSuffix)\(session.shellsSuffix) — \(session.state.label)\(session.agentsSuffix)"
                 let item: NSMenuItem
                 if session.origin == nil {
                     item = NSMenuItem(title: title, action: #selector(ClosureInvoker.fire), keyEquivalent: "")

@@ -107,6 +107,12 @@ is upgraded to 🔴 — Claude is blocked on your answer, but no permission
 notification ever fires for it. Subagent starts and stops maintain one marker
 file each next to the session's JSON; the app counts them for the badge.
 
+Rows also show the session's permission mode when it isn't the default —
+` · plan`, ` · auto-edit`, ` · bypass`, etc. The hook records the
+`permission_mode` field Claude Code sends with most events; the tooltip
+always shows the exact value. Toggling modes while idle only becomes
+visible on the next hook event (prompt, tool call, or stop).
+
 ## Remote sessions
 
 Sessions running on **other Macs** and in **Claude Code cloud sandboxes**
