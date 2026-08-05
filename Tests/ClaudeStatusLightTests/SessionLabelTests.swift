@@ -11,13 +11,15 @@ struct SessionLabelTests {
         age: TimeInterval = 0,
         agents: Int = 0,
         title: String? = nil,
-        shells: [String] = []
+        shells: [String] = [],
+        mode: String? = nil
     ) -> SessionState {
         SessionState(
             sessionID: "s", state: state, cwd: "/tmp/mlb-props",
             termProgram: "unknown", tty: tty, pid: pid,
             updatedAt: Date().addingTimeInterval(-age),
-            agents: agents, title: title, shells: shells
+            agents: agents, title: title, shells: shells,
+            permissionMode: mode
         )
     }
 
@@ -44,6 +46,26 @@ struct SessionLabelTests {
         #expect(session().agentsSuffix == "")
         #expect(session(agents: 1).agentsSuffix == " · 1 agent")
         #expect(session(agents: 3).agentsSuffix == " · 3 agents")
+    }
+
+    @Test func modeSuffixShowsNonDefaultModes() {
+        #expect(session().modeSuffix == "")
+        #expect(session(mode: "default").modeSuffix == "")
+        #expect(session(mode: "plan").modeSuffix == " · plan")
+        #expect(session(mode: "acceptEdits").modeSuffix == " · auto-edit")
+        #expect(session(mode: "auto").modeSuffix == " · auto")
+        #expect(session(mode: "dontAsk").modeSuffix == " · don't-ask")
+        #expect(session(mode: "bypassPermissions").modeSuffix == " · bypass")
+    }
+
+    @Test func unknownModesShowRawRatherThanHidden() {
+        #expect(session(mode: "yolo").modeSuffix == " · yolo")
+    }
+
+    @Test func tooltipShowsModeIncludingDefault() {
+        #expect(session(mode: "default").tooltip.contains("mode: default"))
+        #expect(session(mode: "plan").tooltip.contains("mode: plan"))
+        #expect(!session().tooltip.contains("mode:"))
     }
 
     @Test func shellsSuffixShowsTheCommand() {

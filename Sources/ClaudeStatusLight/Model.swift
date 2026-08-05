@@ -61,6 +61,10 @@ struct SessionState {
     /// recorded pid/tty are meaningless on this machine.
     var backgroundOverride: Bool? = nil
 
+    /// Claude Code permission mode from hook payloads ("default", "plan",
+    /// "acceptEdits", …). nil until an event carrying it has fired.
+    var permissionMode: String? = nil
+
     /// Headless sessions (daemon-spawned, background tasks): a known owning
     /// process but no controlling terminal.
     var isBackground: Bool { backgroundOverride ?? (pid != nil && tty.isEmpty) }
@@ -104,6 +108,21 @@ struct SessionState {
         agents > 0 ? " · \(agents) agent\(agents == 1 ? "" : "s")" : ""
     }
 
+    /// " · plan" (etc.) for non-default permission modes. Manual (default)
+    /// is the baseline and shows nothing; unknown future modes show raw so
+    /// new modes surface instead of vanishing.
+    var modeSuffix: String {
+        guard let mode = permissionMode, !mode.isEmpty, mode != "default" else { return "" }
+        switch mode {
+        case "plan":              return " · plan"
+        case "acceptEdits":       return " · auto-edit"
+        case "auto":              return " · auto"
+        case "dontAsk":           return " · don't-ask"
+        case "bypassPermissions": return " · bypass"
+        default:                  return " · \(mode)"
+        }
+    }
+
     /// What Claude-spawned shell work is still running: the command
     /// (truncated) for a single shell, just a count for several. Full
     /// commands are in the tooltip. Titled agent rows suppress this — the
@@ -122,6 +141,9 @@ struct SessionState {
     /// Hover detail shared by the menu and the floating panel.
     var tooltip: String {
         var lines = [cwd, "\(termProgram) · \(tty.isEmpty ? "tty unknown" : tty)"]
+        if let permissionMode, !permissionMode.isEmpty {
+            lines.append("mode: \(permissionMode)")
+        }
         if let origin {
             lines.append("remote session on \(origin)")
         } else if isParked {
