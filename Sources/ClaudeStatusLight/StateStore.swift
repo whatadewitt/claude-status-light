@@ -99,7 +99,8 @@ final class StateStore {
                 updatedAt: updatedAt,
                 agents: agents,
                 title: title(forTranscriptAt: (obj["transcript_path"] as? String) ?? ""),
-                shells: shells
+                shells: shells,
+                permissionMode: (obj["permission_mode"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ))
         }
         return result.sorted { $0.updatedAt > $1.updatedAt }

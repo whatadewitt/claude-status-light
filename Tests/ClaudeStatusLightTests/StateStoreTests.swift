@@ -22,7 +22,8 @@ struct StateStoreTests {
         pid: Int? = nil,
         tty: String = "",
         age: TimeInterval = 0,
-        transcriptPath: String? = nil
+        transcriptPath: String? = nil,
+        permissionMode: String? = nil
     ) throws -> URL {
         var obj: [String: Any] = [
             "state": state,
@@ -34,6 +35,7 @@ struct StateStoreTests {
         ]
         if let pid { obj["pid"] = pid }
         if let transcriptPath { obj["transcript_path"] = transcriptPath }
+        if let permissionMode { obj["permission_mode"] = permissionMode }
         let url = dir.appendingPathComponent("\(id).json")
         try JSONSerialization.data(withJSONObject: obj).write(to: url)
         return url
@@ -112,6 +114,25 @@ struct StateStoreTests {
         // Old-format files always had an empty tty; don't mislabel them.
         _ = try writeSession(id: "legacy", tty: "")
         #expect(store.activeSessions().first?.isBackground == false)
+    }
+
+    // MARK: - Permission mode
+
+    @Test func parsesPermissionMode() throws {
+        _ = try writeSession(id: "planning", pid: Int(ProcessInfo.processInfo.processIdentifier),
+                             permissionMode: "plan")
+        #expect(store.activeSessions().first?.permissionMode == "plan")
+    }
+
+    @Test func missingOrEmptyModeIsNil() throws {
+        // The hook writes "" for sessions that never saw a mode; old-format
+        // files lack the key entirely. Both mean "unknown".
+        _ = try writeSession(id: "empty", pid: Int(ProcessInfo.processInfo.processIdentifier),
+                             permissionMode: "")
+        _ = try writeSession(id: "legacy")
+        for session in store.activeSessions() {
+            #expect(session.permissionMode == nil)
+        }
     }
 
     // MARK: - Subagent markers
