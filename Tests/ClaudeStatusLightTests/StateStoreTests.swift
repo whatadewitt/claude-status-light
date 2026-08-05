@@ -130,7 +130,9 @@ struct StateStoreTests {
         _ = try writeSession(id: "empty", pid: Int(ProcessInfo.processInfo.processIdentifier),
                              permissionMode: "")
         _ = try writeSession(id: "legacy")
-        for session in store.activeSessions() {
+        let sessions = store.activeSessions()
+        #expect(sessions.count == 2)
+        for session in sessions {
             #expect(session.permissionMode == nil)
         }
     }

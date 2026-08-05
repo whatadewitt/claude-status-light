@@ -32,13 +32,14 @@ struct RemoteWireTests {
         let local = SessionState(
             sessionID: "abc", state: .idle, cwd: "/p", termProgram: "t", tty: "",
             pid: 42, updatedAt: Date(timeIntervalSince1970: 1), agents: 0,
-            title: nil, shells: []
+            title: nil, shells: [], permissionMode: "plan"
         )
         let json = String(decoding: try JSONEncoder().encode(WireSession(from: local)), as: UTF8.self)
         #expect(json.contains("\"session_id\""))
         #expect(json.contains("\"term_program\""))
         #expect(json.contains("\"updated_at\""))
         #expect(json.contains("\"background\":true"))  // pid + empty tty = background
+        #expect(json.contains("\"permission_mode\""))
     }
 
     @Test func oldWireJsonWithoutModeStillDecodes() throws {
