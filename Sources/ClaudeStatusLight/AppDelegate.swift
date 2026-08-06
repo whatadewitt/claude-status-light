@@ -137,8 +137,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if Settings.shared.showDockIcon {
             NSApp.applicationIconImage = IconRenderer.icon(
-                for: currentState, side: 128, background: dockBackground, frame: danceFrame, agents: agents)
+                for: currentState, side: 128, background: dockBackground, frame: danceFrame)
         }
+        // The Dock gets the system red badge (like Slack/iMessage) instead of
+        // the drawn blue dot; harmless to set when the Dock icon is hidden.
+        NSApp.dockTile.badgeLabel = agents > 0 ? "\(agents)" : nil
     }
 
     private func startWatching() {
