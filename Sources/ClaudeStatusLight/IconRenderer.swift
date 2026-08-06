@@ -41,13 +41,14 @@ enum IconRenderer {
         }
     }
 
-    /// Running-subagent count: a blue dot with the number, pinned bottom-left
-    /// so it never collides with the custom-icon state dot at bottom-right.
+    /// Running-subagent count: a blue dot with the number, pinned top-right
+    /// to match macOS notification badges; the custom-icon state dot keeps
+    /// bottom-right so the two never collide.
     /// Blue is deliberately outside the stoplight palette.
     private static func drawAgentBadge(count: Int, in rect: NSRect) {
         let r = rect.width * 0.26
-        let cx = rect.minX + r
-        let cy = rect.minY + r
+        let cx = rect.maxX - r
+        let cy = rect.maxY - r
         let ringRect = NSRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
         NSColor.white.setFill()
         NSBezierPath(ovalIn: ringRect).fill()
