@@ -32,6 +32,7 @@ final class Settings {
         static let showDock = "showDockIcon"
         static let lockCorner = "lockToCorner"
         static let corner = "floatingCorner"
+        static let autoHide = "floatingAutoHide"
         static let greenBeatsYellow = "greenBeatsYellow"
         static let floatingX = "floatingOriginX"
         static let floatingY = "floatingOriginY"
@@ -45,6 +46,7 @@ final class Settings {
             Key.lockCorner: true,
             Key.corner: ScreenCorner.topRight.rawValue,
             Key.greenBeatsYellow: true,
+            Key.autoHide: false,
         ])
     }
 
@@ -68,6 +70,12 @@ final class Settings {
     var lockToCorner: Bool {
         get { defaults.bool(forKey: Key.lockCorner) }
         set { store(newValue, Key.lockCorner) }
+    }
+    /// Collapse the floating window to just the mascot; it slides out on
+    /// hover or when a session needs input.
+    var autoHideFloating: Bool {
+        get { defaults.bool(forKey: Key.autoHide) }
+        set { store(newValue, Key.autoHide) }
     }
     var greenBeatsYellow: Bool {
         get { defaults.bool(forKey: Key.greenBeatsYellow) }

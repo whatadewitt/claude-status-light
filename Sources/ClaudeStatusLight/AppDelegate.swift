@@ -133,7 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let agents = currentSessions.reduce(0) { $0 + $1.agents }
         statusBar.setIcon(IconRenderer.icon(for: currentState, side: 18, frame: danceFrame, agents: agents))
         if Settings.shared.showFloatingWindow {
-            floating.setIcon(IconRenderer.icon(for: currentState, side: 16, frame: danceFrame, agents: agents))
+            let (state, frame) = (currentState, danceFrame)
+            floating.setIcon { IconRenderer.icon(for: state, side: $0, frame: frame, agents: agents) }
         }
         if Settings.shared.showDockIcon {
             NSApp.applicationIconImage = IconRenderer.icon(

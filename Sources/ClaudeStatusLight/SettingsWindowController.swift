@@ -65,6 +65,9 @@ final class SettingsWindowController: NSObject {
         pickers.append(picker)
         cornerRow.addArrangedSubview(picker.popup)
         stack.addArrangedSubview(cornerRow)
+        stack.addArrangedSubview(checkbox("Auto-hide — show only the mascot until hovered", settings.autoHideFloating) {
+            Settings.shared.autoHideFloating = $0
+        })
 
         stack.addArrangedSubview(separator())
         stack.addArrangedSubview(sectionLabel("Behavior"))

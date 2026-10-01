@@ -16,7 +16,9 @@ Three surfaces, each toggleable in **Settings** (open it from any menu):
 - **Menu bar icon** (default on) — the light in the top-right status bar.
 - **Floating desktop window** — a small always-on-top panel that mirrors the
   status and lists sessions. Lock it to any screen corner, or unlock it to drag
-  it anywhere (its position is remembered).
+  it anywhere (its position is remembered). Turn on **auto-hide** to shrink it
+  to just the mascot — like the Dock, it slides out on hover, and pops out on
+  its own when a session needs your input.
 - **Dock icon** — the app icon itself tints to the current state.
 
 Enabling the dock icon switches the app to a regular (dock-present) app;
@@ -218,6 +220,7 @@ Sources/ClaudeStatusLight/
   Settings.swift                  UserDefaults-backed preferences
   StatusBarController.swift       menu bar item
   FloatingPanelController.swift   always-on-top desktop window
+  PanelGeometry.swift             auto-hide tile anchoring + pop-out rule
   SettingsWindowController.swift  preferences window
   IconRenderer.swift              spark/mascot icon + .icns generation
   TerminalFocuser.swift           click-a-session → focus its terminal
