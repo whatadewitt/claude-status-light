@@ -61,6 +61,9 @@ so a finished turn doesn't sit idle while its prompt cache goes cold. Enable it
 under **Settings ▸ Behavior** and pick the delay (default 4 min); it's **off by
 default**. The banner names the project, and clicking it jumps to that session's
 terminal. One nudge per idle stretch; it re-arms once the session goes busy again.
+Only interactive sessions on this Mac nudge — not background agents or remote
+(relay) sessions — and sessions already waiting when the app starts (or when you
+switch the nudge on) are skipped until their next idle stretch.
 
 ## How it works
 

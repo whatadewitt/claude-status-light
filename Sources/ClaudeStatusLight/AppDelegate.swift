@@ -19,10 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var currentState: LightState = .off
     private let dockBackground = NSColor(calibratedWhite: 0.13, alpha: 1)
 
-    /// When each waiting session's current "ball is in your court" episode began,
-    /// and which sessions we've already nudged for that episode.
-    private var nudgeSince: [String: Date] = [:]
-    private var nudged: Set<String> = []
+    private var idleNudges = IdleNudgeTracker()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if Notifier.isAvailable {
@@ -130,41 +127,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     // MARK: - Idle nudge
 
-    /// Fire a one-shot notification once an interactive session has sat waiting
-    /// on the user (green "awaiting task" or red "waiting for input") for the
-    /// configured time — a heads-up to reply before the ~5-minute prompt cache
-    /// expires. The clock is tracked here rather than from the session file's
-    /// `updated_at` because Claude Code's ~60s idle reminder rewrites that
-    /// timestamp without making an API call (so it doesn't refresh the cache).
+    /// Post a one-shot notification once a local interactive session has sat
+    /// waiting on you for the configured time — a heads-up to reply before
+    /// the ~5-minute prompt cache expires. See IdleNudgeTracker for the rules.
     private func updateIdleNudges(_ sessions: [SessionState]) {
         let settings = Settings.shared
-        let now = Date()
-        let threshold = settings.idleNudgeMinutes * 60
-        var waitingIDs = Set<String>()
-
-        for session in sessions {
-            let waiting = (session.state == .idle || session.state == .attention)
-                && !session.isBackground
-            guard settings.idleNudgeEnabled, waiting else { continue }
-            waitingIDs.insert(session.sessionID)
-
-            // Anchor the episode at whichever is earlier: when we first saw it
-            // waiting, or its last hook write (so a mid-episode app launch still
-            // counts time already elapsed).
-            let start = nudgeSince[session.sessionID] ?? min(now, session.updatedAt)
-            nudgeSince[session.sessionID] = start
-
-            if !nudged.contains(session.sessionID),
-               now.timeIntervalSince(start) >= threshold {
-                nudged.insert(session.sessionID)
-                Notifier.nudge(session: session, minutes: settings.idleNudgeMinutes)
-            }
-        }
-
-        // Sessions that went back to work, ended, or turned background re-arm.
-        for id in nudgeSince.keys where !waitingIDs.contains(id) {
-            nudgeSince.removeValue(forKey: id)
-            nudged.remove(id)
+        let due = idleNudges.update(
+            sessions, now: Date(),
+            enabled: settings.idleNudgeEnabled,
+            threshold: settings.idleNudgeMinutes * 60
+        )
+        for session in due {
+            Notifier.nudge(session: session, minutes: settings.idleNudgeMinutes)
         }
     }
 
