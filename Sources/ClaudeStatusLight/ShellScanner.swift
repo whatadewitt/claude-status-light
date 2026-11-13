@@ -54,18 +54,37 @@ enum ShellScanner {
     }
 
     /// Full argument list of a process as one space-joined string, or nil if
-    /// it exited or belongs to another user. KERN_PROCARGS2 lays out
-    /// argc, the exec path, then NUL-separated argv — NULs become spaces,
-    /// which is fine for signature matching and eval extraction.
+    /// it exited or belongs to another user.
     private static func argv(of pid: pid_t) -> String? {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 4 else { return nil }
         var buf = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, 3, &buf, &size, nil, 0) == 0, size > 4 else { return nil }
-        let joined = buf[4..<size].map { $0 == 0 ? UInt8(ascii: " ") : $0 }
-        return String(decoding: joined, as: UTF8.self)
-            .replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
+        return argv(fromProcArgs2: buf[..<size])
+    }
+
+    /// Decodes a KERN_PROCARGS2 buffer: a native-endian Int32 argc, the exec
+    /// path, NUL padding, then argc NUL-terminated argv strings — followed by
+    /// the environment and Apple's `key=value` strings, which must not leak
+    /// into the command. Some macOS versions expose the environment of
+    /// same-user processes, others blank it. Arguments are joined with spaces,
+    /// which is fine for signature matching and eval extraction.
+    static func argv(fromProcArgs2 buf: ArraySlice<UInt8>) -> String? {
+        guard buf.count > 4 else { return nil }
+        let argc = buf.prefix(4).withUnsafeBytes { Int($0.loadUnaligned(as: Int32.self)) }
+        guard argc > 0 else { return nil }
+        var i = buf.startIndex + 4
+        // Skip the exec path, then the NUL padding after it.
+        while i < buf.endIndex, buf[i] != 0 { i += 1 }
+        while i < buf.endIndex, buf[i] == 0 { i += 1 }
+        var args: [String] = []
+        while args.count < argc, i < buf.endIndex {
+            let end = buf[i...].firstIndex(of: 0) ?? buf.endIndex
+            args.append(String(decoding: buf[i..<end], as: UTF8.self))
+            i = end + 1
+        }
+        guard !args.isEmpty else { return nil }
+        return args.joined(separator: " ")
     }
 }
