@@ -1,6 +1,7 @@
 import AppKit
+import UserNotifications
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private let store = StateStore()
     private var remote = RemoteStore(config: RelayConfig.load())
     private let statusBar = StatusBarController()
@@ -18,7 +19,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentState: LightState = .off
     private let dockBackground = NSColor(calibratedWhite: 0.13, alpha: 1)
 
+    private var idleNudges = IdleNudgeTracker()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Notifier.isAvailable {
+            UNUserNotificationCenter.current().delegate = self
+            Notifier.requestAuthorization()
+        }
+
         floating.onFocus = { session in
             guard session.origin == nil else { return }  // nothing to focus locally
             TerminalFocuser.focus(session)
@@ -47,6 +55,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? { makeMenu() }
+
+    // MARK: - Notifications
+
+    /// Show the nudge as a banner even though we're an accessory (menu-bar) app.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    /// Clicking a nudge focuses the terminal it was about.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        let term = info["termProgram"] as? String ?? ""
+        let tty = info["tty"] as? String ?? ""
+        if !term.isEmpty || !tty.isEmpty {
+            DispatchQueue.main.async { TerminalFocuser.focus(termProgram: term, tty: tty) }
+        }
+        completionHandler()
+    }
 
     // MARK: - Settings
 
@@ -91,7 +121,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             floating.update(state: state, sessions: sessions)
         }
         updateDance(anyWorking: sessions.contains { $0.state == .working })
+        updateIdleNudges(sessions)
         applyIcons()
+    }
+
+    // MARK: - Idle nudge
+
+    /// Post a one-shot notification once a local interactive session has sat
+    /// waiting on you for the configured time — a heads-up to reply before
+    /// the ~5-minute prompt cache expires. See IdleNudgeTracker for the rules.
+    private func updateIdleNudges(_ sessions: [SessionState]) {
+        let settings = Settings.shared
+        let due = idleNudges.update(
+            sessions, now: Date(),
+            enabled: settings.idleNudgeEnabled,
+            threshold: settings.idleNudgeMinutes * 60
+        )
+        for session in due {
+            Notifier.nudge(session: session, minutes: settings.idleNudgeMinutes)
+        }
     }
 
     // MARK: - Dance

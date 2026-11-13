@@ -4,11 +4,17 @@ import Foundation
 /// Brings the terminal window/tab that hosts a given session to the front.
 enum TerminalFocuser {
     static func focus(_ s: SessionState) {
+        focus(termProgram: s.termProgram, tty: s.tty)
+    }
+
+    /// Focus by raw terminal identity — used when a clicked notification carries
+    /// only the stored term/tty, so it works even if the session has since moved on.
+    static func focus(termProgram: String, tty: String) {
         // With a known tty we can target the exact tab; otherwise just raise the app.
-        if !s.tty.isEmpty, let script = script(for: s.termProgram, tty: s.tty) {
+        if !tty.isEmpty, let script = script(for: termProgram, tty: tty) {
             runAppleScript(script)
         } else {
-            activateApp(for: s.termProgram)
+            activateApp(for: termProgram)
         }
     }
 
