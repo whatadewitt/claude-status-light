@@ -32,6 +32,39 @@ struct ShellScannerTests {
         #expect(ShellScanner.command(fromArgv: argv) == argv)
     }
 
+    // MARK: - KERN_PROCARGS2 decoding
+
+    /// A KERN_PROCARGS2 buffer as the kernel lays it out: argc, exec path,
+    /// NUL padding, argv, then the environment and Apple strings.
+    private func procArgs2(execPath: String, argv: [String], trailing: [String]) -> ArraySlice<UInt8> {
+        var buf = withUnsafeBytes(of: Int32(argv.count)) { Array($0) }
+        buf += Array(execPath.utf8) + [0, 0, 0, 0]
+        for s in argv + trailing { buf += Array(s.utf8) + [0] }
+        return buf[...]
+    }
+
+    @Test func procArgsStopsAtArgcIgnoringEnvironment() {
+        // GitHub's macOS runners expose the child's environment and Apple
+        // strings after argv; they must not end up in the command.
+        let buf = procArgs2(
+            execPath: "/bin/zsh",
+            argv: ["/bin/zsh", "-c", "true /Users/x/.claude/shell-snapshots/snapshot-zsh-test.sh && eval 'sleep 30'"],
+            trailing: ["RUNNER_NAME=GitHub Actions 1000000707", "SHELL=/bin/bash", "",
+                       "executable_file=0x1a0100000d,0xfffffff000a8e28", "ptrauth_disabled=1"])
+        let argv = ShellScanner.argv(fromProcArgs2: buf)
+        #expect(argv == "/bin/zsh -c true /Users/x/.claude/shell-snapshots/snapshot-zsh-test.sh && eval 'sleep 30'")
+        #expect(ShellScanner.command(fromArgv: argv ?? "") == "sleep 30")
+    }
+
+    @Test func procArgsWithoutEnvironment() {
+        let buf = procArgs2(execPath: "/bin/sleep", argv: ["sleep", "30"], trailing: [])
+        #expect(ShellScanner.argv(fromProcArgs2: buf) == "sleep 30")
+    }
+
+    @Test func procArgsRejectsTruncatedBuffer() {
+        #expect(ShellScanner.argv(fromProcArgs2: [1, 0][...]) == nil)
+    }
+
     // MARK: - Live process scan
 
     @Test func findsSignatureChildAndIgnoresOthers() throws {
